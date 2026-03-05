@@ -1,0 +1,11 @@
+planner:
+  provider: claude
+  model: claude-opus-4-6
+  effort: high
+reviewer:
+  provider: codex
+  model: gpt-5.3-codex
+  effort: xhigh
+plans_dir: docs/plans
+max_rounds: 10
+human_in_loop: true

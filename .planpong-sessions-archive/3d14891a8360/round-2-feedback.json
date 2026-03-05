@@ -1,0 +1,14 @@
+{
+  "verdict": "needs_revision",
+  "summary": "The plan has a critical internal mismatch: it hardcodes imperial in `(main)` while also expecting `(main)` pages to honor saved user preference.",
+  "issues": [
+    {
+      "id": "F1",
+      "severity": "P1",
+      "section": "Step 6 (Wire provider into layouts), Key Decisions ((main) preference), Verification #2/#3/#4",
+      "title": "Main-route default blocks preference on core surfaces",
+      "description": "The plan sets `src/app/(main)/layout.tsx` to `initial=\"imperial\"` with no resolver call. But the verification goals require preferred units on product detail, kit builder, and comparison surfaces. Those surfaces are in `(main)` routes (`/products/[id]`, `/kit/[id]`, `/kit/[id]/slot/[slotId]`), so after reload/navigation they will render imperial instead of the saved DB preference. This prevents the plan from meeting its own acceptance criteria.",
+      "suggestion": "Resolve preference for authenticated users in the `(main)` render path as well (e.g., in a shared main layout or existing main layouts/auth-aware shell), with anonymous fallback to imperial. Then update verification criteria to match the actual routing behavior."
+    }
+  ]
+}

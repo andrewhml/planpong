@@ -1,0 +1,22 @@
+{
+  "verdict": "needs_revision",
+  "summary": "The plan is directionally strong, but two cache/rendering decisions are likely to cause stale behavior or performance regressions unless adjusted.",
+  "issues": [
+    {
+      "id": "F1",
+      "severity": "P2",
+      "section": "Step 2: Add server actions / Key Decisions: Revalidation scope",
+      "title": "Revalidation scope is too narrow for a site-wide preference",
+      "description": "The plan uses `revalidatePath(\"/\")` while stating the preference affects all pages. In App Router, this default invalidates the root page cache, not the full layout subtree. Unit values on other cached routes can remain stale after a preference change.",
+      "suggestion": "Use `revalidatePath(\"/\", \"layout\")` for subtree invalidation, or adopt tag-based revalidation and tag all unit-dependent data paths consistently."
+    },
+    {
+      "id": "F2",
+      "severity": "P2",
+      "section": "Approach: Server-side locale detection / Step 1 / Step 6",
+      "title": "Header-based detection in `(main)/layout` forces dynamic rendering",
+      "description": "`resolveUnitPreference()` for anonymous users depends on `Accept-Language` headers, and Step 6 calls it from `src/app/(main)/layout.tsx`. Reading request headers in layout makes that route group request-dynamic in Next.js, which removes static optimization/CDN caching for public pages.",
+      "suggestion": "Constrain header-based detection to only the routes/components that need SSR unit formatting, or use a strategy that preserves static rendering for `(main)` (for example client-side preference initialization for anonymous users). If dynamic rendering is intentional, document and accept the perf tradeoff explicitly."
+    }
+  ]
+}

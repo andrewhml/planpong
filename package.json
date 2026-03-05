@@ -1,0 +1,31 @@
+{
+  "name": "planpong",
+  "version": "0.1.0",
+  "description": "Multi-model plan review CLI — orchestrates AI agents for adversarial plan refinement",
+  "type": "module",
+  "bin": {
+    "planpong": "./bin/planpong.ts"
+  },
+  "scripts": {
+    "dev": "tsx bin/planpong.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "execa": "^9.5.2",
+    "@inquirer/prompts": "^7.3.2",
+    "ora": "^8.2.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

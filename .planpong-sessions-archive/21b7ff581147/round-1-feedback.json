@@ -1,0 +1,22 @@
+{
+  "verdict": "needs_revision",
+  "summary": "The plan is close, but it has one blocking wiring error and one scope gap that would leave some unit displays stuck on imperial.",
+  "issues": [
+    {
+      "id": "F1",
+      "severity": "P1",
+      "section": "Step 6: Wire provider into layouts / File Map",
+      "title": "Target layout file for `(main)` does not exist",
+      "description": "The plan specifies `src/app/(main)/layout.tsx`, but this codebase has no such file. Existing `(main)` layouts are `src/app/(main)/kit/layout.tsx`, `src/app/(main)/products/layout.tsx`, and `src/app/(main)/u/layout.tsx`. As written, this step cannot be implemented and `(main)` routes would miss provider wiring.",
+      "suggestion": "Revise Step 6 to wire the provider at an actual shared ancestor (e.g. `src/app/layout.tsx` or `AuthAwareShell`) or explicitly wire all existing `(main)` sub-layouts."
+    },
+    {
+      "id": "F2",
+      "severity": "P2",
+      "section": "Step 6 + Step 7",
+      "title": "Planned provider scope may exclude `ProductDetailPanel` consumers",
+      "description": "Step 6 says to \"wrap children with provider\". In current structure, `ProductDetailPanel` is rendered inside `AppShell`, not inside the `children` slot. Step 7 updates `product-detail-content.tsx` to read `useUnitPreference()`, and that component is used by `ProductDetailPanel`. If only `children` are wrapped, panel renders outside the provider and falls back to imperial.",
+      "suggestion": "Place `UnitPreferenceProvider` above `AppShell` (or inside `AppShell`/`AuthAwareShell` at the top) so both routed content and shell-owned components like `ProductDetailPanel` share the same context."
+    }
+  ]
+}

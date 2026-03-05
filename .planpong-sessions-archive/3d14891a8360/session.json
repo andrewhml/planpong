@@ -1,0 +1,20 @@
+{
+  "id": "3d14891a8360",
+  "repoRoot": "/Users/andrewlee/workspace/personal/kitted",
+  "planPath": "docs/plans/unit-preference.md",
+  "planPathAbsolute": "/Users/andrewlee/workspace/personal/kitted/docs/plans/unit-preference.md",
+  "planner": {
+    "provider": "claude",
+    "model": "claude-opus-4-6",
+    "effort": "high"
+  },
+  "reviewer": {
+    "provider": "codex",
+    "model": "gpt-5.3-codex",
+    "effort": "xhigh"
+  },
+  "status": "approved",
+  "currentRound": 3,
+  "startedAt": "2026-03-05T18:52:31.063Z",
+  "planHash": "1b86da8305044ea9f4de2174917d0f0147402150796bed8948c971b2aaaadb29"
+}

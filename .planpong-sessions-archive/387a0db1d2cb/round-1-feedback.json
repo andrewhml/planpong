@@ -1,0 +1,22 @@
+{
+  "verdict": "needs_revision",
+  "summary": "The overall implementation direction is solid, but one plan decision introduces a significant rendering/performance risk, and one ownership detail is ambiguous.",
+  "issues": [
+    {
+      "id": "F1",
+      "severity": "P2",
+      "section": "Approach (Server-side locale detection) + Step 1 + Step 6",
+      "title": "Locale detection in shared layouts will force dynamic rendering on `(main)` routes",
+      "description": "The plan resolves unit preference in both `src/app/(app)/layout.tsx` and `src/app/(main)/layout.tsx`, and Step 1 explicitly parses `Accept-Language`. In Next.js App Router, reading request headers in a layout makes that subtree dynamic, which can de-static public pages under `(main)` and add avoidable latency/cost.",
+      "suggestion": "Avoid header-based detection directly in layout for `(main)`. Prefer middleware to set a cookie and read that value, or scope server-side locale detection to only routes/components that actually need unit formatting."
+    },
+    {
+      "id": "F2",
+      "severity": "P3",
+      "section": "Step 3 and Step 4",
+      "title": "Persistence ownership is ambiguous between context setter and direct server action usage",
+      "description": "Step 3 says the provider has an optimistic setter that calls the server action, while Step 4 says `UnitSetting` uses the hook and `updateUnitPreference` action. If implemented literally, this can create duplicate mutation paths and inconsistent state flow.",
+      "suggestion": "Choose one mutation path: either `useUnitPreference().setPreference()` owns the server action call, or `UnitSetting` calls the action and the provider only reflects state."
+    }
+  ]
+}

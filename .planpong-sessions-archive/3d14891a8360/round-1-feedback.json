@@ -1,0 +1,22 @@
+{
+  "verdict": "needs_revision",
+  "summary": "The plan is directionally strong and covers the main data flow, but it has two significant reliability/performance gaps that should be resolved before implementation.",
+  "issues": [
+    {
+      "id": "F1",
+      "severity": "P2",
+      "section": "Approach (Server-side locale detection), Step 1, Step 6",
+      "title": "Locale detection in both layouts risks route-wide dynamic rendering regression",
+      "description": "The plan resolves anonymous preference from `Accept-Language` and calls `resolveUnitPreference()` in both `(app)` and `(main)` layouts. In Next.js App Router, reading request headers in a layout makes that subtree request-dynamic, which can disable static optimization/full-route caching for all pages under that group. Applying this to `(main)` can create a significant performance regression.",
+      "suggestion": "Constrain header-based detection to routes that are already dynamic, or move anonymous locale inference to a client-side initialization path (or equivalent non-layout strategy) for `(main)`. Explicitly verify build output/caching behavior before rollout."
+    },
+    {
+      "id": "F2",
+      "severity": "P2",
+      "section": "Step 3 and Step 4",
+      "title": "Preference mutation path is underspecified for failure handling",
+      "description": "Step 3 says the provider has an optimistic setter that calls the server action, while Step 4 also says `UnitSetting` uses the server action. The plan does not define a single authoritative mutation path or rollback/error behavior if the action fails. This can leave UI state inconsistent with persisted DB state.",
+      "suggestion": "Define one write path (preferably `useUnitPreference().setPreference`) that handles pending state, rollback on failure, and user-visible error feedback. Keep `UnitSetting` as a thin consumer of that API."
+    }
+  ]
+}

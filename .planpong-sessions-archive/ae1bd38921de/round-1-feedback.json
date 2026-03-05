@@ -1,0 +1,14 @@
+{
+  "verdict": "needs_revision",
+  "summary": "The plan is close, but there is one significant coverage gap in provider placement that can leave some unit-formatted UI outside context and stuck on imperial.",
+  "issues": [
+    {
+      "id": "F1",
+      "severity": "P2",
+      "section": "Step 6: Wire provider into layouts",
+      "title": "Wrapping only `children` can miss AppShell-owned consumers",
+      "description": "Step 6 specifies wrapping `children` with `UnitPreferenceProvider` in both `(app)` layout and `AuthAwareShell`. In this codebase, `AppShell` renders some consumers (notably panel content paths using `ProductDetailContent`) outside the `children` slot. If the provider only wraps `children`, those consumers fall back to the hook default (`\"imperial\"`) and ignore the saved preference.",
+      "suggestion": "Make Step 6 explicit that the provider must wrap the entire shell output tree (e.g., provider outside `AppShell` and outside the anonymous shell), not just `children`. Add a verification check for panel-based product detail rendering in the selected unit."
+    }
+  ]
+}
