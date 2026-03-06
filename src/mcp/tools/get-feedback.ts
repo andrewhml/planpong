@@ -1,9 +1,15 @@
 import { z } from "zod";
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
 import { readSessionState, writeSessionState } from "../../core/session.js";
-import { runReviewRound, severityFromFeedback } from "../../core/operations.js";
+import {
+  runReviewRound,
+  severityFromFeedback,
+  writeStatusLineToPlan,
+} from "../../core/operations.js";
 
 const inputSchema = {
   session_id: z.string().describe("Session ID from planpong_start_review"),
@@ -84,6 +90,24 @@ export function registerGetFeedback(server: McpServer): void {
         sessionConfig,
         reviewerProvider,
       );
+
+      // Update status line with review results
+      const suffix = result.converged
+        ? `Approved after ${result.round} rounds`
+        : `Reviewed — ${result.feedback.issues.length} issues`;
+      writeStatusLineToPlan(session, cwd, sessionConfig, suffix);
+
+      if (result.converged) {
+        session.status = "approved";
+        const planPath = resolve(cwd, session.planPath);
+        let planContent = readFileSync(planPath, "utf-8");
+        planContent = planContent.replace(
+          /\*\*Status:\*\* .*/,
+          "**Status:** Approved",
+        );
+        writeFileSync(planPath, planContent);
+        writeSessionState(cwd, session);
+      }
 
       return {
         content: [

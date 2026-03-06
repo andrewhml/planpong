@@ -12,6 +12,7 @@ export const SessionSchema = z.object({
   currentRound: z.number().int().min(0),
   startedAt: z.string(),
   planHash: z.string(),
+  initialLineCount: z.number().int().optional(),
 });
 
 export type Session = z.infer<typeof SessionSchema>;
