@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { buildRevisionPrompt } from "../prompts/planner.js";
-import { buildReviewPrompt, formatPriorDecisions, } from "../prompts/reviewer.js";
+import { buildReviewPrompt, formatPriorDecisions, getReviewPhase, } from "../prompts/reviewer.js";
 import { parseFeedback, parseRevision, isConverged } from "./convergence.js";
 import { createSession, writeSessionState, writeRoundFeedback, writeRoundResponse, readRoundFeedback, readRoundResponse, writeInitialPlan, } from "./session.js";
 // --- Utility functions ---
@@ -206,8 +206,9 @@ export async function runReviewRound(session, cwd, config, reviewerProvider) {
     const round = session.currentRound;
     const planPath = resolve(cwd, session.planPath);
     const planContent = readFileSync(planPath, "utf-8");
+    const phase = getReviewPhase(round);
     const priorDecisions = buildPriorDecisions(cwd, session.id, round);
-    const reviewPrompt = buildReviewPrompt(planContent, priorDecisions);
+    const reviewPrompt = buildReviewPrompt(planContent, priorDecisions, phase);
     const reviewResponse = await reviewerProvider.invoke(reviewPrompt, {
         cwd,
         model: config.reviewer.model,
@@ -248,8 +249,9 @@ export async function runRevisionRound(session, cwd, config, plannerProvider) {
     if (!feedback) {
         throw new Error(`No feedback found for session ${session.id} round ${round}`);
     }
+    const phase = getReviewPhase(round);
     const keyDecisions = extractKeyDecisions(planContent);
-    const revisionPrompt = buildRevisionPrompt(planContent, feedback, keyDecisions, null);
+    const revisionPrompt = buildRevisionPrompt(planContent, feedback, keyDecisions, null, phase);
     const revisionResponse = await plannerProvider.invoke(revisionPrompt, {
         cwd,
         model: config.planner.model,
