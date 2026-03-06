@@ -142,6 +142,10 @@ export function registerGetFeedback(server: McpServer): void {
         content: [
           {
             type: "text" as const,
+            text: statusLine,
+          },
+          {
+            type: "text" as const,
             text: JSON.stringify(response),
           },
         ],

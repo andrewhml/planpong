@@ -103,6 +103,10 @@ export function registerGetFeedback(server) {
             content: [
                 {
                     type: "text",
+                    text: statusLine,
+                },
+                {
+                    type: "text",
                     text: JSON.stringify(response),
                 },
             ],

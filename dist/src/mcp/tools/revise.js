@@ -67,6 +67,10 @@ export function registerRevise(server) {
             content: [
                 {
                     type: "text",
+                    text: statusLine,
+                },
+                {
+                    type: "text",
                     text: JSON.stringify({
                         round: result.round,
                         responses: result.revision.responses,
