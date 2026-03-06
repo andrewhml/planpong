@@ -1,0 +1,11 @@
+import { type Ora } from "ora";
+import type { ReviewFeedback } from "../schemas/feedback.js";
+import type { PlannerRevision } from "../schemas/revision.js";
+export declare function printBanner(): void;
+export declare function printPlanGenerated(planPath: string): void;
+export declare function createSpinner(text: string): Ora;
+export declare function printFeedbackSummary(round: number, feedback: ReviewFeedback): void;
+export declare function printRevisionSummary(round: number, revision: PlannerRevision): void;
+export declare function printConverged(round: number): void;
+export declare function printMaxRounds(maxRounds: number): void;
+export declare function printAborted(): void;
