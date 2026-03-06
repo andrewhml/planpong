@@ -105,6 +105,25 @@ Planpong updates your plan file in-place. It adds a status line:
 
 Session data is stored in `.planpong/sessions/` (add to `.gitignore`).
 
+## Development
+
+```sh
+git clone https://github.com/andrewhml/planpong.git
+cd planpong
+npm install        # installs deps + configures git hooks
+npm run build      # compile TypeScript
+npm run typecheck  # type-check without emitting
+```
+
+### Publishing
+
+Automated via GitHub Actions. No tokens or OTP needed.
+
+```sh
+npm version patch   # bumps version + creates git tag
+git push && git push --tags   # triggers publish to npm
+```
+
 ## License
 
 MIT
