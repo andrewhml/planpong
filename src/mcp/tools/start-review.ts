@@ -40,6 +40,12 @@ const inputSchema = {
     })
     .optional()
     .describe("Reviewer configuration overrides"),
+  interactive: z
+    .boolean()
+    .optional()
+    .describe(
+      "If true, pause after each round for user confirmation. Default: false (autonomous)",
+    ),
 };
 
 export function registerStartReview(server: McpServer): void {
@@ -104,6 +110,7 @@ export function registerStartReview(server: McpServer): void {
               session_id: session.id,
               plan_path: planPath,
               plan_summary: planSummary,
+              interactive: input.interactive ?? false,
               config: {
                 planner: config.planner,
                 reviewer: config.reviewer,
