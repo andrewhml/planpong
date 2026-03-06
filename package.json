@@ -4,8 +4,8 @@
   "description": "Multi-model adversarial plan review — orchestrates AI agents to critique and refine implementation plans",
   "type": "module",
   "bin": {
-    "planpong": "./dist/bin/planpong.js",
-    "planpong-mcp": "./dist/bin/planpong-mcp.js"
+    "planpong": "dist/bin/planpong.js",
+    "planpong-mcp": "dist/bin/planpong-mcp.js"
   },
   "files": [
     "dist/"
