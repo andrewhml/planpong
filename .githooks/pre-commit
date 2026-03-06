@@ -1,0 +1,7 @@
+#!/bin/sh
+# Auto-rebuild dist/ when source files are staged
+
+if git diff --cached --name-only | grep -qE '\.(ts|tsx)$'; then
+  npm run build 2>&1
+  git add dist/
+fi
