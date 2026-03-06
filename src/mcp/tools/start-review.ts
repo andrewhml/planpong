@@ -6,6 +6,7 @@ import { loadConfig } from "../../config/loader.js";
 import {
   getProvider,
   getAvailableProviders,
+  getInstallHint,
 } from "../../providers/registry.js";
 import { initReviewSession } from "../../core/operations.js";
 
@@ -71,27 +72,71 @@ export function registerStartReview(server: McpServer): void {
         },
       });
 
-      // Check provider availability
+      // Check provider availability and auto-fallback
       const available = await getAvailableProviders();
       const availableNames = available.map((p) => p.name);
-      const plannerAvailable = availableNames.includes(config.planner.provider);
-      const reviewerAvailable = availableNames.includes(
-        config.reviewer.provider,
-      );
 
-      if (!plannerAvailable || !reviewerAvailable) {
-        const missing: string[] = [];
-        if (!plannerAvailable)
-          missing.push(`planner: ${config.planner.provider}`);
-        if (!reviewerAvailable)
-          missing.push(`reviewer: ${config.reviewer.provider}`);
+      if (availableNames.length === 0) {
         return {
           content: [
             {
               type: "text" as const,
               text: JSON.stringify({
-                error: `Providers not available: ${missing.join(", ")}`,
+                error:
+                  "No AI providers found. Planpong needs at least one CLI installed.",
+                install: [getInstallHint("claude"), getInstallHint("codex")],
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Auto-fallback: if configured provider isn't available, use what is
+      const plannerExplicit = !!input.planner?.provider;
+      const reviewerExplicit = !!input.reviewer?.provider;
+      const plannerAvailable = availableNames.includes(config.planner.provider);
+      const reviewerAvailable = availableNames.includes(
+        config.reviewer.provider,
+      );
+
+      if (!plannerAvailable && !plannerExplicit && availableNames.length > 0) {
+        config.planner.provider = availableNames[0];
+      }
+      if (
+        !reviewerAvailable &&
+        !reviewerExplicit &&
+        availableNames.length > 0
+      ) {
+        // Prefer a different provider than planner if possible
+        const alt = availableNames.find((n) => n !== config.planner.provider);
+        config.reviewer.provider = alt ?? availableNames[0];
+      }
+
+      // Check again after fallback
+      const finalPlannerOk = availableNames.includes(config.planner.provider);
+      const finalReviewerOk = availableNames.includes(config.reviewer.provider);
+
+      if (!finalPlannerOk || !finalReviewerOk) {
+        const missing: string[] = [];
+        if (!finalPlannerOk) {
+          missing.push(
+            `Planner "${config.planner.provider}" not found. ${getInstallHint(config.planner.provider)}`,
+          );
+        }
+        if (!finalReviewerOk) {
+          missing.push(
+            `Reviewer "${config.reviewer.provider}" not found. ${getInstallHint(config.reviewer.provider)}`,
+          );
+        }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                error: missing.join("\n"),
                 available: availableNames,
+                hint: "Or configure a different provider in planpong.yaml or via tool parameters.",
               }),
             },
           ],

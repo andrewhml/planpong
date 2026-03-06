@@ -87,6 +87,9 @@ Respond with a JSON object wrapped in <planpong-revision> tags. The JSON must ma
 IMPORTANT:
 - Every issue MUST have a response. Do not skip any.
 - The \`updated_plan\` must be the complete plan markdown, not a diff.
+- Only modify sections of the plan that are directly addressed by accepted feedback. Do not reorganize, rephrase, or "improve" parts of the plan that aren't related to any issue.
+- Do NOT modify the \`**planpong:**\` status line — it is managed automatically.
+- Preserve the plan's existing structure, headings, and formatting. Your job is surgical revision, not rewriting.
 - Wrap your JSON response in <planpong-revision>...</planpong-revision> tags.
 
 <planpong-revision>
