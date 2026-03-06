@@ -1,24 +1,44 @@
 {
   "name": "planpong",
   "version": "0.1.0",
-  "description": "Multi-model plan review CLI — orchestrates AI agents for adversarial plan refinement",
+  "description": "Multi-model adversarial plan review — orchestrates AI agents to critique and refine implementation plans",
   "type": "module",
   "bin": {
-    "planpong": "./bin/planpong.ts"
+    "planpong": "./dist/bin/planpong.js",
+    "planpong-mcp": "./dist/bin/planpong-mcp.js"
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "dev": "tsx bin/planpong.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=18.0.0"
   },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "plan-review",
+    "adversarial",
+    "ai-agents",
+    "claude",
+    "codex"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrewhml/planpong.git"
+  },
+  "license": "MIT",
   "dependencies": {
+    "@inquirer/prompts": "^7.3.2",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "execa": "^9.5.2",
-    "@inquirer/prompts": "^7.3.2",
     "ora": "^8.2.0",
     "yaml": "^2.7.0",
     "zod": "^3.24.2"
