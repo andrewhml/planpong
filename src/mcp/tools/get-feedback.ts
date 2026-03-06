@@ -14,6 +14,7 @@ import {
   severityFromFeedback,
   writeStatusLineToPlan,
 } from "../../core/operations.js";
+import { getReviewPhase } from "../../prompts/reviewer.js";
 
 const inputSchema = {
   session_id: z.string().describe("Session ID from planpong_start_review"),
@@ -106,8 +107,10 @@ export function registerGetFeedback(server: McpServer): void {
         suffix,
       );
 
+      const phase = getReviewPhase(result.round);
       const response: Record<string, unknown> = {
         round: result.round,
+        phase,
         verdict: result.feedback.verdict,
         summary: result.feedback.summary,
         issues: result.feedback.issues,

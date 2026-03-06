@@ -5,6 +5,7 @@ import { loadConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
 import { readSessionState, writeSessionState, readInitialPlan, } from "../../core/session.js";
 import { runReviewRound, writeStatusLineToPlan, } from "../../core/operations.js";
+import { getReviewPhase } from "../../prompts/reviewer.js";
 const inputSchema = {
     session_id: z.string().describe("Session ID from planpong_start_review"),
     cwd: z
@@ -73,8 +74,10 @@ export function registerGetFeedback(server) {
             ? `Approved after ${result.round} rounds`
             : `Reviewed — ${result.feedback.issues.length} issues`;
         const statusLine = writeStatusLineToPlan(session, cwd, sessionConfig, suffix);
+        const phase = getReviewPhase(result.round);
         const response = {
             round: result.round,
+            phase,
             verdict: result.feedback.verdict,
             summary: result.feedback.summary,
             issues: result.feedback.issues,

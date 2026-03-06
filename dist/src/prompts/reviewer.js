@@ -1,8 +1,38 @@
-export function buildReviewPrompt(planContent, priorDecisions) {
+export function getReviewPhase(round) {
+    return round <= 1 ? "direction" : "detail";
+}
+function buildDirectionReviewInstructions() {
+    return `You are reviewing an implementation plan at a HIGH LEVEL. Focus on direction, not details.
+
+Your job in this round is to evaluate whether the plan is solving the right problem with the right approach. Do NOT nitpick implementation details, missing edge cases, or formatting — those will be reviewed in later rounds.
+
+Focus on:
+- **Problem framing:** Is the plan solving the right problem? Is the scope appropriate?
+- **Approach:** Is the chosen architecture/strategy sound? Are there fundamentally better alternatives?
+- **Assumptions:** Are there unstated assumptions that could invalidate the plan?
+- **Constraints:** Does the plan account for real-world constraints (timeline, dependencies, team)?
+- **Risk:** Are there high-level risks that could derail the entire effort?
+
+Do NOT focus on:
+- Missing implementation details (those come later)
+- Specific file paths or code patterns
+- Edge cases or error handling
+- Formatting or structure of the plan document
+
+Assign severity based on directional impact:
+  - P1 = wrong problem, fundamentally flawed approach, or critical missing constraint
+  - P2 = questionable strategic choice that could lead to significant rework
+  - P3 = alternative approach worth considering
+
+- If the direction is sound, approve the plan so detailed review can begin.`;
+}
+function buildDetailReviewInstructions(priorDecisions) {
     const priorBlock = priorDecisions
         ? `\n## Prior Round Decisions\n\n${priorDecisions}\n\nDo not re-raise rejected items without citing specific new evidence (a URL, a test result, a behavior change). Issues rejected in prior rounds with valid rationale are RESOLVED.\n`
         : "";
     return `You are reviewing an implementation plan. Your role is adversarial but fair.
+
+The plan's overall direction has already been validated. Focus on implementation completeness and correctness.
 
 - Only flag issues you have concrete evidence for. Cite the plan section.
 - Assign severity honestly:
@@ -14,7 +44,13 @@ export function buildReviewPrompt(planContent, priorDecisions) {
 - Deferred items from prior rounds are acknowledged and do not block approval.
 - If the plan is solid with only minor informational notes, use "approved_with_notes" (all issues must be P3).
 - If you approve with "approved_with_notes", do NOT include any P1 or P2 issues.
-${priorBlock}
+${priorBlock}`;
+}
+export function buildReviewPrompt(planContent, priorDecisions, phase = "detail") {
+    const instructions = phase === "direction"
+        ? buildDirectionReviewInstructions()
+        : buildDetailReviewInstructions(priorDecisions);
+    return `${instructions}
 ## Plan to Review
 
 ${planContent}

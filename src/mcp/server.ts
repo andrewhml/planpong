@@ -15,10 +15,16 @@ export function createPlanpongServer(): McpServer {
     {
       instructions: `Planpong is a multi-model adversarial plan review tool. It sends plans to a reviewer model for critique, then to a planner model for revision, iterating until the plan converges.
 
+Planpong uses a two-phase review process:
+- **Phase 1 (Round 1) — Direction:** The reviewer evaluates high-level direction — is this the right problem, approach, and scope? The planner can make sweeping changes if directional feedback warrants it.
+- **Phase 2 (Rounds 2+) — Detail:** The reviewer shifts to implementation completeness — missing steps, edge cases, gaps. The planner makes surgical, targeted fixes.
+
+The "phase" field in tool responses tells you which phase is active. Mention the phase to the user so they understand why feedback character changes between rounds.
+
 When the user asks you to review a plan:
 1. Call planpong_start_review with the plan path. Pass interactive: true if the user asks to review interactively, step by step, or wants to approve each round. Default is false (autonomous).
 2. Call planpong_get_feedback to get reviewer critique
-3. Show the user the feedback summary and issues
+3. Show the user the feedback summary and issues (note: round 1 is directional review)
 4. If is_converged is false, call planpong_revise to revise the plan
 5. Show the user the revision summary (accepted/rejected/deferred)
 6. Repeat steps 2-5 until converged or max rounds reached

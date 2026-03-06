@@ -9,6 +9,7 @@ import { buildRevisionPrompt } from "../prompts/planner.js";
 import {
   buildReviewPrompt,
   formatPriorDecisions,
+  getReviewPhase,
 } from "../prompts/reviewer.js";
 import { parseFeedback, parseRevision, isConverged } from "./convergence.js";
 import {
@@ -341,8 +342,9 @@ export async function runReviewRound(
   const planPath = resolve(cwd, session.planPath);
   const planContent = readFileSync(planPath, "utf-8");
 
+  const phase = getReviewPhase(round);
   const priorDecisions = buildPriorDecisions(cwd, session.id, round);
-  const reviewPrompt = buildReviewPrompt(planContent, priorDecisions);
+  const reviewPrompt = buildReviewPrompt(planContent, priorDecisions, phase);
 
   const reviewResponse = await reviewerProvider.invoke(reviewPrompt, {
     cwd,
@@ -398,12 +400,14 @@ export async function runRevisionRound(
     );
   }
 
+  const phase = getReviewPhase(round);
   const keyDecisions = extractKeyDecisions(planContent);
   const revisionPrompt = buildRevisionPrompt(
     planContent,
     feedback,
     keyDecisions,
     null,
+    phase,
   );
 
   const revisionResponse = await plannerProvider.invoke(revisionPrompt, {
