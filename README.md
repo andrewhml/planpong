@@ -30,7 +30,7 @@ Planpong shells out to these CLIs. No API keys are configured in planpong itself
 ## Install
 
 ```sh
-npm install -g github:andrewhml/planpong
+npm install -g planpong
 ```
 
 ## Setup (Claude Code MCP)
