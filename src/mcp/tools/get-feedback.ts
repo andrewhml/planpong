@@ -4,7 +4,11 @@ import { resolve } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
-import { readSessionState, writeSessionState } from "../../core/session.js";
+import {
+  readSessionState,
+  writeSessionState,
+  readInitialPlan,
+} from "../../core/session.js";
 import {
   runReviewRound,
   severityFromFeedback,
@@ -95,7 +99,22 @@ export function registerGetFeedback(server: McpServer): void {
       const suffix = result.converged
         ? `Approved after ${result.round} rounds`
         : `Reviewed — ${result.feedback.issues.length} issues`;
-      writeStatusLineToPlan(session, cwd, sessionConfig, suffix);
+      const statusLine = writeStatusLineToPlan(
+        session,
+        cwd,
+        sessionConfig,
+        suffix,
+      );
+
+      const response: Record<string, unknown> = {
+        round: result.round,
+        verdict: result.feedback.verdict,
+        summary: result.feedback.summary,
+        issues: result.feedback.issues,
+        severity_counts: result.severity,
+        is_converged: result.converged,
+        status_line: statusLine,
+      };
 
       if (result.converged) {
         session.status = "approved";
@@ -107,20 +126,20 @@ export function registerGetFeedback(server: McpServer): void {
         );
         writeFileSync(planPath, planContent);
         writeSessionState(cwd, session);
+
+        // Include initial plan for change summary
+        const initialPlan = readInitialPlan(cwd, session.id);
+        if (initialPlan) {
+          response.initial_plan = initialPlan;
+          response.final_plan = readFileSync(planPath, "utf-8");
+        }
       }
 
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({
-              round: result.round,
-              verdict: result.feedback.verdict,
-              summary: result.feedback.summary,
-              issues: result.feedback.issues,
-              severity_counts: result.severity,
-              is_converged: result.converged,
-            }),
+            text: JSON.stringify(response),
           },
         ],
       };
