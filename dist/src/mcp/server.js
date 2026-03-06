@@ -12,9 +12,10 @@ export function createPlanpongServer() {
     }, {
         instructions: `Planpong is a multi-model adversarial plan review tool. It sends plans to a reviewer model for critique, then to a planner model for revision, iterating until the plan converges.
 
-Planpong uses a two-phase review process:
+Planpong uses a three-phase review process:
 - **Phase 1 (Round 1) — Direction:** The reviewer evaluates high-level direction — is this the right problem, approach, and scope? The planner can make sweeping changes if directional feedback warrants it.
-- **Phase 2 (Rounds 2+) — Detail:** The reviewer shifts to implementation completeness — missing steps, edge cases, gaps. The planner makes surgical, targeted fixes.
+- **Phase 2 (Round 2) — Risk / Pre-mortem:** The reviewer assumes the plan will fail and surfaces hidden assumptions, dependencies, and failure modes. The planner adds mitigations for accepted risks.
+- **Phase 3 (Rounds 3+) — Detail:** The reviewer shifts to implementation completeness — missing steps, edge cases, gaps. The planner makes surgical, targeted fixes.
 
 The "phase" field in tool responses tells you which phase is active. Mention the phase to the user so they understand why feedback character changes between rounds.
 
