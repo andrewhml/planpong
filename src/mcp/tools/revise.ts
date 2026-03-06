@@ -3,7 +3,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
 import { readSessionState } from "../../core/session.js";
-import { runRevisionRound } from "../../core/operations.js";
+import {
+  runRevisionRound,
+  writeStatusLineToPlan,
+} from "../../core/operations.js";
 
 const inputSchema = {
   session_id: z.string().describe("Session ID from planpong_start_review"),
@@ -78,6 +81,9 @@ export function registerRevise(server: McpServer): void {
         sessionConfig,
         plannerProvider,
       );
+
+      // Update status line in plan file (planner may have mangled it)
+      writeStatusLineToPlan(session, cwd, sessionConfig, "Revision submitted");
 
       return {
         content: [

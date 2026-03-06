@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import type { Provider } from "../providers/types.js";
-import type { PlanpongConfig } from "../schemas/config.js";
+import type { PlanpongConfig, ProviderConfig } from "../schemas/config.js";
 import type { ReviewFeedback } from "../schemas/feedback.js";
 import type { PlannerRevision, IssueResponse } from "../schemas/revision.js";
 import { buildRevisionPrompt } from "../prompts/planner.js";
@@ -110,6 +110,58 @@ export function formatDuration(ms: number): string {
   return `${minutes}m ${remainingSeconds}s`;
 }
 
+export function formatProviderLabel(provider: ProviderConfig): string {
+  const hasModel = provider.model && provider.model !== "default";
+  const hasEffort = provider.effort && provider.effort !== "default";
+  if (!hasModel && !hasEffort) return provider.provider;
+  const parts = [
+    hasModel ? provider.model : null,
+    hasEffort ? provider.effort : null,
+  ].filter(Boolean);
+  return `${provider.provider}(${parts.join("/")})`;
+}
+
+export interface SessionStats {
+  issueTrajectory: RoundSeverity[];
+  totalAccepted: number;
+  totalRejected: number;
+  totalDeferred: number;
+}
+
+export function computeSessionStats(
+  cwd: string,
+  sessionId: string,
+  currentRound: number,
+): SessionStats {
+  const trajectory: RoundSeverity[] = [];
+  let totalAccepted = 0;
+  let totalRejected = 0;
+  let totalDeferred = 0;
+
+  for (let r = 1; r <= currentRound; r++) {
+    const feedback = readRoundFeedback(cwd, sessionId, r);
+    if (feedback) {
+      trajectory.push(severityFromFeedback(feedback));
+    }
+
+    const response = readRoundResponse(cwd, sessionId, r);
+    if (response) {
+      for (const resp of response.responses) {
+        if (resp.action === "accepted") totalAccepted++;
+        else if (resp.action === "rejected") totalRejected++;
+        else if (resp.action === "deferred") totalDeferred++;
+      }
+    }
+  }
+
+  return {
+    issueTrajectory: trajectory,
+    totalAccepted,
+    totalRejected,
+    totalDeferred,
+  };
+}
+
 export function buildStatusLine(
   session: Session,
   config: PlanpongConfig,
@@ -121,8 +173,8 @@ export function buildStatusLine(
   linesRemoved: number,
   elapsed: number,
 ): string {
-  const plannerLabel = `${config.planner.provider}(${config.planner.model ?? "default"}/${config.planner.effort ?? "default"})`;
-  const reviewerLabel = `${config.reviewer.provider}(${config.reviewer.model ?? "default"}/${config.reviewer.effort ?? "default"})`;
+  const plannerLabel = formatProviderLabel(config.planner);
+  const reviewerLabel = formatProviderLabel(config.reviewer);
   const trajectory = formatTrajectory(issueTrajectory);
   const tallies = formatTallies(accepted, rejected, deferred);
   const elapsedStr = formatDuration(elapsed);
@@ -137,6 +189,45 @@ export function buildStatusLine(
   ].filter(Boolean);
 
   return parts.join(" | ");
+}
+
+/**
+ * Build and write the status line to the plan file.
+ * Used by both CLI and MCP paths after each round.
+ */
+export function writeStatusLineToPlan(
+  session: Session,
+  cwd: string,
+  config: PlanpongConfig,
+  suffix?: string,
+): void {
+  const planPath = resolve(cwd, session.planPath);
+  let planContent = readFileSync(planPath, "utf-8");
+
+  const stats = computeSessionStats(cwd, session.id, session.currentRound);
+  const elapsed = Date.now() - new Date(session.startedAt).getTime();
+  const currentLines = countLines(planContent);
+  const initialLines = session.initialLineCount ?? currentLines;
+  const linesAdded = Math.max(0, currentLines - initialLines);
+  const linesRemoved = Math.max(0, initialLines - currentLines);
+
+  const statusLine =
+    buildStatusLine(
+      session,
+      config,
+      stats.issueTrajectory,
+      stats.totalAccepted,
+      stats.totalRejected,
+      stats.totalDeferred,
+      linesAdded,
+      linesRemoved,
+      elapsed,
+    ) + (suffix ? ` | ${suffix}` : "");
+
+  planContent = updatePlanStatusLine(planContent, statusLine);
+  writeFileSync(planPath, planContent);
+  session.planHash = hashFile(planPath);
+  writeSessionState(cwd, session);
 }
 
 export function updatePlanStatusLine(
@@ -179,7 +270,7 @@ export function initReviewSession(
   const relativePlanPath = relative(cwd, planPath);
   let planContent = readFileSync(planPath, "utf-8");
 
-  const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${config.planner.provider}(${config.planner.model ?? "default"}/${config.planner.effort ?? "default"}) → ${config.reviewer.provider}(${config.reviewer.model ?? "default"}/${config.reviewer.effort ?? "default"}) | Awaiting review`;
+  const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${formatProviderLabel(config.planner)} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
   planContent = updatePlanStatusLine(planContent, initialStatusLine);
   writeFileSync(planPath, planContent);
 
@@ -190,6 +281,7 @@ export function initReviewSession(
     config.reviewer,
     hashFile(planPath),
   );
+  session.initialLineCount = countLines(planContent);
   session.status = "in_review";
   writeSessionState(cwd, session);
 
@@ -380,29 +472,25 @@ export function finalizeApproved(
   initialLineCount: number,
 ): void {
   const planPath = resolve(cwd, session.planPath);
-  let planContent = readFileSync(planPath, "utf-8");
   const round = session.currentRound;
+  const elapsed = Date.now() - startTime;
+  let planContent = readFileSync(planPath, "utf-8");
   const currentLines = countLines(planContent);
   const linesAdded = Math.max(0, currentLines - initialLineCount);
   const linesRemoved = Math.max(0, initialLineCount - currentLines);
-  const elapsed = Date.now() - startTime;
 
-  const finalStatus = buildStatusLine(
-    session,
-    config,
-    issueTrajectory,
-    totalAccepted,
-    totalRejected,
-    totalDeferred,
-    linesAdded,
-    linesRemoved,
-    elapsed,
-  )
-    .replace(/^(\*\*planpong:\*\* R)\d+/, `$1${round}`)
-    .replace(
-      /\| Issues:.*$/,
-      `| Approved after ${round} rounds | ${formatTrajectory(issueTrajectory)} → Approved | ${formatTallies(totalAccepted, totalRejected, totalDeferred)} | +${linesAdded}/-${linesRemoved} lines | ${formatDuration(elapsed)}`,
-    );
+  const finalStatus =
+    buildStatusLine(
+      session,
+      config,
+      issueTrajectory,
+      totalAccepted,
+      totalRejected,
+      totalDeferred,
+      linesAdded,
+      linesRemoved,
+      elapsed,
+    ) + ` | Approved after ${round} rounds`;
 
   planContent = updatePlanStatusLine(planContent, finalStatus);
   planContent = planContent.replace(

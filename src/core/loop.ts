@@ -10,6 +10,7 @@ import {
   hashFile,
   buildStatusLine,
   updatePlanStatusLine,
+  formatProviderLabel,
   initReviewSession,
   runReviewRound,
   runRevisionRound,
@@ -127,7 +128,7 @@ export async function runLoop(options: LoopOptions): Promise<void> {
   const relativePlanPath = relative(cwd, planPath);
 
   let planContent = planResponse.content;
-  const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${config.planner.provider}(${config.planner.model ?? "default"}/${config.planner.effort ?? "default"}) → ${config.reviewer.provider}(${config.reviewer.model ?? "default"}/${config.reviewer.effort ?? "default"}) | Awaiting review`;
+  const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${formatProviderLabel(config.planner)} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
   planContent = updatePlanStatusLine(planContent, initialStatusLine);
   writeFileSync(planPath, planContent);
 
