@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env node
 import { Command } from "commander";
 import { registerPlanCommand } from "../src/cli/commands/plan.js";
 import { registerReviewCommand } from "../src/cli/commands/review.js";
