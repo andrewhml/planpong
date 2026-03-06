@@ -105,6 +105,24 @@ export function readRoundResponse(
   return JSON.parse(readFileSync(path, "utf-8")) as PlannerRevision;
 }
 
+export function writeInitialPlan(
+  repoRoot: string,
+  sessionId: string,
+  content: string,
+): void {
+  const dir = getSessionDir(repoRoot, sessionId);
+  writeFileSync(join(dir, "initial-plan.md"), content);
+}
+
+export function readInitialPlan(
+  repoRoot: string,
+  sessionId: string,
+): string | null {
+  const path = join(getSessionDir(repoRoot, sessionId), "initial-plan.md");
+  if (!existsSync(path)) return null;
+  return readFileSync(path, "utf-8");
+}
+
 export function resolvePlanPath(session: Session): string {
   // Try repoRoot + relative path first
   const fromRepo = join(session.repoRoot, session.planPath);

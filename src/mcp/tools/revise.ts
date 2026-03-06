@@ -83,7 +83,12 @@ export function registerRevise(server: McpServer): void {
       );
 
       // Update status line in plan file (planner may have mangled it)
-      writeStatusLineToPlan(session, cwd, sessionConfig, "Revision submitted");
+      const statusLine = writeStatusLineToPlan(
+        session,
+        cwd,
+        sessionConfig,
+        "Revision submitted",
+      );
 
       return {
         content: [
@@ -96,6 +101,7 @@ export function registerRevise(server: McpServer): void {
               rejected: result.rejected,
               deferred: result.deferred,
               plan_updated: result.planUpdated,
+              status_line: statusLine,
             }),
           },
         ],

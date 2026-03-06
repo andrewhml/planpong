@@ -25,7 +25,12 @@ When the user asks you to review a plan:
 
 Execution mode (check the "interactive" field in planpong_start_review response):
 - interactive: false (default) — Run the full loop autonomously. Do NOT ask the user for confirmation between rounds. Only pause if an error occurs or the user explicitly interrupts. Present a brief summary after each round but keep going.
-- interactive: true — After each round, present the results and ask the user if they want to continue, stop, or adjust before proceeding to the next step.`,
+- interactive: true — After each round, present the results and ask the user if they want to continue, stop, or adjust before proceeding to the next step.
+
+When the review completes (converged OR max rounds reached):
+1. Display the status_line from the final tool response — this is the canonical summary.
+2. Generate a "Summary of what changed" table comparing the initial plan to the final plan. The final get_feedback response includes initial_plan and final_plan when converged. For max rounds, read the plan file yourself. The table should have columns: Area | Original | Final — showing the key decisions and approaches that changed during the review. Keep it to the most meaningful changes (5-10 rows max). Use a markdown table.
+3. If the review hit max rounds without converging, note which reviewer concerns remain unresolved and whether they are substantive or deployment-level details.`,
     },
   );
 
@@ -54,7 +59,7 @@ Execution mode (check the "interactive" field in planpong_start_review response)
           role: "user",
           content: {
             type: "text",
-            text: `Review the plan at ${args.plan_path} using planpong. Run the full review loop autonomously (start_review → get_feedback → revise → repeat until converged). Print a brief summary after each round.`,
+            text: `Review the plan at ${args.plan_path} using planpong. Run the full review loop autonomously (start_review → get_feedback → revise → repeat until converged). Print a brief summary after each round. When done, display the final status line and a summary table of what changed.`,
           },
         },
       ],

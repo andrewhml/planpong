@@ -18,6 +18,7 @@ import {
   writeRoundResponse,
   readRoundFeedback,
   readRoundResponse,
+  writeInitialPlan,
 } from "./session.js";
 import type { Session } from "../schemas/session.js";
 
@@ -200,7 +201,7 @@ export function writeStatusLineToPlan(
   cwd: string,
   config: PlanpongConfig,
   suffix?: string,
-): void {
+): string {
   const planPath = resolve(cwd, session.planPath);
   let planContent = readFileSync(planPath, "utf-8");
 
@@ -228,6 +229,7 @@ export function writeStatusLineToPlan(
   writeFileSync(planPath, planContent);
   session.planHash = hashFile(planPath);
   writeSessionState(cwd, session);
+  return statusLine;
 }
 
 export function updatePlanStatusLine(
@@ -268,7 +270,8 @@ export function initReviewSession(
   }
 
   const relativePlanPath = relative(cwd, planPath);
-  let planContent = readFileSync(planPath, "utf-8");
+  const originalContent = readFileSync(planPath, "utf-8");
+  let planContent = originalContent;
 
   const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${formatProviderLabel(config.planner)} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
   planContent = updatePlanStatusLine(planContent, initialStatusLine);
@@ -283,6 +286,7 @@ export function initReviewSession(
   );
   session.initialLineCount = countLines(planContent);
   session.status = "in_review";
+  writeInitialPlan(cwd, session.id, originalContent);
   writeSessionState(cwd, session);
 
   return { session, planContent, config };
