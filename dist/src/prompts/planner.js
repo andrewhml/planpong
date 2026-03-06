@@ -46,6 +46,26 @@ DEFER when:
 - It's a good strategic point for a future iteration
 
 For each response, explain your reasoning with specifics. If you accept a directional change, make the necessary structural updates to the plan — don't just acknowledge the point.`;
+    const riskInstructions = `You are revising a plan based on a PRE-MORTEM risk review. The reviewer assumed this plan would fail and identified potential risks, hidden assumptions, and failure modes.
+
+You are the plan's ADVOCATE. Not every risk needs a mitigation — some are acceptable, some are already covered, and some are too unlikely to warrant action. Evaluate each risk on its merits:
+
+ACCEPT when:
+- The risk is real and unmitigated in the current plan
+- Adding a mitigation (fallback, validation, rollback step) is low-cost and high-value
+- The assumption is genuinely unchecked and could cause real problems
+
+REJECT when:
+- The risk is already mitigated by existing plan steps (cite them)
+- The scenario is extremely unlikely and the impact is recoverable
+- The mitigation would add significant complexity for marginal safety
+- The reviewer is catastrophizing — the risk is theoretical, not practical
+
+DEFER when:
+- The risk is real but out of scope for this phase of work
+- Addressing it requires infrastructure or decisions beyond this plan's scope
+
+When accepting risks, add concrete mitigations to the plan — verification steps, fallback procedures, or explicit assumptions to validate. Don't just acknowledge the risk.`;
     const detailInstructions = `You are revising a plan based on reviewer feedback. You are the plan's ADVOCATE, not a compliance engine. Evaluate each issue on its merits:
 
 REJECT when:
@@ -70,12 +90,20 @@ DEFER when:
 - It's a good idea for v2 but not a blocker for v1
 
 For each response, cite specific evidence: reference the plan section, the research that informed the decision, or the constraint that makes the suggestion inapplicable. Vague agreement ("good point, updated") is not acceptable — explain WHY you're accepting, with the same rigor you'd use for a rejection.`;
-    const roleInstructions = phase === "direction" ? directionInstructions : detailInstructions;
-    const surgicalConstraint = phase === "detail"
-        ? `- Only modify sections of the plan that are directly addressed by accepted feedback. Do not reorganize, rephrase, or "improve" parts of the plan that aren't related to any issue.
-- Preserve the plan's existing structure, headings, and formatting. Your job is surgical revision, not rewriting.`
-        : `- You may make structural changes (reorder sections, change approach, adjust scope) if accepted feedback warrants it.
-- Preserve sections that aren't affected by the feedback.`;
+    const roleInstructions = phase === "direction"
+        ? directionInstructions
+        : phase === "risk"
+            ? riskInstructions
+            : detailInstructions;
+    const surgicalConstraint = phase === "direction"
+        ? `- You may make structural changes (reorder sections, change approach, adjust scope) if accepted feedback warrants it.
+- Preserve sections that aren't affected by the feedback.`
+        : phase === "risk"
+            ? `- Add mitigations, verification steps, or fallback procedures for accepted risks.
+- You may add new sections (e.g., "Risks & Mitigations") if needed.
+- Do not reorganize or rephrase parts of the plan unrelated to risk feedback.`
+            : `- Only modify sections of the plan that are directly addressed by accepted feedback. Do not reorganize, rephrase, or "improve" parts of the plan that aren't related to any issue.
+- Preserve the plan's existing structure, headings, and formatting. Your job is surgical revision, not rewriting.`;
     return `${roleInstructions}
 ${contextBlock}${decisionsBlock}
 ## Current Plan

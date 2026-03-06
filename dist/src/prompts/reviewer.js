@@ -1,5 +1,9 @@
 export function getReviewPhase(round) {
-    return round <= 1 ? "direction" : "detail";
+    if (round <= 1)
+        return "direction";
+    if (round === 2)
+        return "risk";
+    return "detail";
 }
 function buildDirectionReviewInstructions() {
     return `You are reviewing an implementation plan at a HIGH LEVEL. Focus on direction, not details.
@@ -26,6 +30,34 @@ Assign severity based on directional impact:
 
 - If the direction is sound, approve the plan so detailed review can begin.`;
 }
+function buildRiskReviewInstructions(priorDecisions) {
+    const priorBlock = priorDecisions
+        ? `\n## Prior Round Decisions\n\n${priorDecisions}\n\nDo not re-raise rejected items without citing specific new evidence. Issues rejected in prior rounds with valid rationale are RESOLVED.\n`
+        : "";
+    return `You are conducting a PRE-MORTEM review of an implementation plan. The plan's direction has been validated — now assume this plan will fail and figure out why.
+
+Your job is to surface risks, hidden assumptions, and failure modes that aren't obvious from the plan itself. Think like a skeptical senior engineer who has seen similar projects go wrong.
+
+Focus on:
+- **Assumptions:** What is the plan taking for granted that might not be true? (API behavior, data formats, library compatibility, team familiarity)
+- **Dependencies:** What external factors could block or delay this? (third-party services, upstream changes, approvals, data availability)
+- **Failure modes:** What happens when things go wrong? (error handling gaps, rollback strategy, data corruption scenarios)
+- **Integration risks:** Where do different parts of the plan interact, and what could break at those boundaries?
+- **Operational risks:** What could go wrong in deployment, migration, or runtime that the plan doesn't address?
+
+Do NOT focus on:
+- Whether the overall approach is right (that was validated in round 1)
+- Minor implementation details or code-level concerns (those come in later rounds)
+- Stylistic or formatting issues
+
+Assign severity based on risk impact:
+  - P1 = unmitigated risk that could cause data loss, outage, or require a full rollback
+  - P2 = risk that could cause significant delay or rework if it materializes
+  - P3 = risk worth acknowledging but unlikely or easily recoverable
+
+- If the plan adequately addresses risks and has reasonable mitigations, approve it.
+${priorBlock}`;
+}
 function buildDetailReviewInstructions(priorDecisions) {
     const priorBlock = priorDecisions
         ? `\n## Prior Round Decisions\n\n${priorDecisions}\n\nDo not re-raise rejected items without citing specific new evidence (a URL, a test result, a behavior change). Issues rejected in prior rounds with valid rationale are RESOLVED.\n`
@@ -49,7 +81,9 @@ ${priorBlock}`;
 export function buildReviewPrompt(planContent, priorDecisions, phase = "detail") {
     const instructions = phase === "direction"
         ? buildDirectionReviewInstructions()
-        : buildDetailReviewInstructions(priorDecisions);
+        : phase === "risk"
+            ? buildRiskReviewInstructions(priorDecisions)
+            : buildDetailReviewInstructions(priorDecisions);
     return `${instructions}
 ## Plan to Review
 
