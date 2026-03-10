@@ -66,6 +66,9 @@ export function parseRevision(content: string): PlannerRevision {
   return PlannerRevisionSchema.parse(parsed);
 }
 
-export function isConverged(feedback: ReviewFeedback): boolean {
+export function isConverged(feedback: ReviewFeedback, round: number): boolean {
+  // Phases 1 (direction) and 2 (risk) must complete before convergence is possible.
+  // Only the detail phase (round 3+) can trigger convergence.
+  if (round < 3) return false;
   return feedback.verdict !== "needs_revision";
 }

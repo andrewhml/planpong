@@ -375,7 +375,7 @@ export async function runReviewRound(
 
   writeRoundFeedback(cwd, session.id, round, feedback);
   const severity = severityFromFeedback(feedback);
-  const converged = isConverged(feedback);
+  const converged = isConverged(feedback, round);
 
   return { round, feedback, severity, converged };
 }

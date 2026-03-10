@@ -15,6 +15,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
+    "test": "vitest run",
     "prepublishOnly": "npm run build"
   },
   "engines": {
@@ -47,6 +48,7 @@
   "devDependencies": {
     "@types/node": "^22.13.10",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^4.0.18"
   }
 }

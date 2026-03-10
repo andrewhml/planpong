@@ -50,7 +50,11 @@ export function parseRevision(content) {
     }
     return PlannerRevisionSchema.parse(parsed);
 }
-export function isConverged(feedback) {
+export function isConverged(feedback, round) {
+    // Phases 1 (direction) and 2 (risk) must complete before convergence is possible.
+    // Only the detail phase (round 3+) can trigger convergence.
+    if (round < 3)
+        return false;
     return feedback.verdict !== "needs_revision";
 }
 //# sourceMappingURL=convergence.js.map

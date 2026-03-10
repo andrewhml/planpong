@@ -7,4 +7,4 @@ import { type PlannerRevision } from "../schemas/revision.js";
 export declare function extractJSON(content: string, tag: string): string | null;
 export declare function parseFeedback(content: string): ReviewFeedback;
 export declare function parseRevision(content: string): PlannerRevision;
-export declare function isConverged(feedback: ReviewFeedback): boolean;
+export declare function isConverged(feedback: ReviewFeedback, round: number): boolean;
