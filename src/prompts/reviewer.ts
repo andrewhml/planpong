@@ -31,7 +31,10 @@ Assign severity based on directional impact:
   - P2 = questionable strategic choice that could lead to significant rework
   - P3 = alternative approach worth considering
 
-- If the direction is sound, approve the plan so detailed review can begin.`;
+Verdict rules:
+- Use "needs_revision" when there are issues to address (this is the normal case).
+- Use "blocked" ONLY when the plan is fundamentally non-viable due to hard external constraints — e.g., depends on a deprecated/unavailable API, violates an organizational policy, or requires resources that don't exist. Do NOT use "blocked" for fixable design issues.
+- You CANNOT approve in this round. Direction review always produces "needs_revision" or "blocked".`;
 }
 
 function buildRiskReviewInstructions(priorDecisions: string | null): string {
@@ -55,12 +58,17 @@ Do NOT focus on:
 - Minor implementation details or code-level concerns (those come in later rounds)
 - Stylistic or formatting issues
 
+Produce a structured risk register in "risks" — this is the full set of risks you identified. Then promote the subset that needs plan changes to "issues". Not every risk needs to become an issue — low-likelihood/low-impact risks can stay in the register as informational.
+
 Assign severity based on risk impact:
   - P1 = unmitigated risk that could cause data loss, outage, or require a full rollback
   - P2 = risk that could cause significant delay or rework if it materializes
   - P3 = risk worth acknowledging but unlikely or easily recoverable
 
-- If the plan adequately addresses risks and has reasonable mitigations, approve it.
+Verdict rules:
+- Use "needs_revision" when there are issues to address (this is the normal case).
+- Use "blocked" ONLY when unmitigable risks make the plan non-viable — e.g., a hard dependency is unavailable, a critical external system is unreliable with no workaround. Do NOT use "blocked" for risks that can be mitigated with plan changes.
+- You CANNOT approve in this round. Risk review always produces "needs_revision" or "blocked".
 ${priorBlock}`;
 }
 
@@ -86,28 +94,81 @@ The plan's overall direction has already been validated. Focus on implementation
 ${priorBlock}`;
 }
 
-export function buildReviewPrompt(
-  planContent: string,
-  priorDecisions: string | null,
-  phase: ReviewPhase = "detail",
-): string {
-  const instructions =
-    phase === "direction"
-      ? buildDirectionReviewInstructions()
-      : phase === "risk"
-        ? buildRiskReviewInstructions(priorDecisions)
-        : buildDetailReviewInstructions(priorDecisions);
-
-  return `${instructions}
-## Plan to Review
-
-${planContent}
-
-## Your Task
-
-Respond with a JSON object wrapped in <planpong-feedback> tags. The JSON must match this schema:
-
+function buildDirectionJsonSchema(): string {
+  return `\`\`\`
+{
+  "verdict": "needs_revision" | "blocked",
+  "summary": "Overall assessment of the plan's direction",
+  "confidence": "high" | "medium" | "low",
+  "approach_assessment": "Why the chosen approach works or doesn't — be specific",
+  "alternatives": [
+    {
+      "approach": "Name/description of an alternative approach",
+      "tradeoff": "Why it was or wasn't chosen, pros/cons"
+    }
+  ],
+  "assumptions": [
+    "Unstated assumption the plan relies on"
+  ],
+  "issues": [
+    {
+      "id": "F1",
+      "severity": "P1" | "P2" | "P3",
+      "section": "Which part of the plan this relates to",
+      "title": "One-line summary",
+      "description": "Detailed explanation",
+      "suggestion": "Recommended fix"
+    }
+  ]
+}
 \`\`\`
+
+If the direction is sound with no issues:
+\`\`\`
+{ "verdict": "needs_revision", "summary": "...", "confidence": "high", "approach_assessment": "...", "alternatives": [], "assumptions": [], "issues": [] }
+\`\`\``;
+}
+
+function buildRiskJsonSchema(): string {
+  return `\`\`\`
+{
+  "verdict": "needs_revision" | "blocked",
+  "summary": "Overall risk assessment",
+  "risk_level": "high" | "medium" | "low",
+  "risks": [
+    {
+      "id": "R1",
+      "category": "dependency" | "integration" | "operational" | "assumption" | "external",
+      "likelihood": "high" | "medium" | "low",
+      "impact": "high" | "medium" | "low",
+      "title": "Short risk title",
+      "description": "Detailed risk description",
+      "mitigation": "Suggested mitigation"
+    }
+  ],
+  "issues": [
+    {
+      "id": "F1",
+      "severity": "P1" | "P2" | "P3",
+      "section": "Which part of the plan this relates to",
+      "title": "One-line summary",
+      "description": "Detailed explanation",
+      "suggestion": "Recommended fix"
+    }
+  ]
+}
+\`\`\`
+
+The "risks" array is your full risk register. The "issues" array is the subset of risks that need plan changes. Not every risk needs to be an issue.
+
+If risks are present but adequately mitigated:
+\`\`\`
+{ "verdict": "needs_revision", "summary": "...", "risk_level": "low", "risks": [...], "issues": [] }
+\`\`\``;
+}
+
+function buildDetailJsonSchema(): string {
+  return `\`\`\`
 {
   "verdict": "needs_revision" | "approved" | "approved_with_notes",
   "summary": "Overall assessment of the plan",
@@ -127,7 +188,38 @@ Respond with a JSON object wrapped in <planpong-feedback> tags. The JSON must ma
 If the plan is approved with no issues, use:
 \`\`\`
 { "verdict": "approved", "summary": "...", "issues": [] }
-\`\`\`
+\`\`\``;
+}
+
+export function buildReviewPrompt(
+  planContent: string,
+  priorDecisions: string | null,
+  phase: ReviewPhase = "detail",
+): string {
+  const instructions =
+    phase === "direction"
+      ? buildDirectionReviewInstructions()
+      : phase === "risk"
+        ? buildRiskReviewInstructions(priorDecisions)
+        : buildDetailReviewInstructions(priorDecisions);
+
+  const jsonSchema =
+    phase === "direction"
+      ? buildDirectionJsonSchema()
+      : phase === "risk"
+        ? buildRiskJsonSchema()
+        : buildDetailJsonSchema();
+
+  return `${instructions}
+## Plan to Review
+
+${planContent}
+
+## Your Task
+
+Respond with a JSON object wrapped in <planpong-feedback> tags. The JSON must match this schema:
+
+${jsonSchema}
 
 IMPORTANT: Wrap your JSON response in <planpong-feedback>...</planpong-feedback> tags.
 

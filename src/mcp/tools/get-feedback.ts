@@ -98,7 +98,9 @@ export function registerGetFeedback(server: McpServer): void {
 
       // Update status line with review results
       const suffix = result.converged
-        ? `Approved after ${result.round} rounds`
+        ? result.feedback.verdict === "blocked"
+          ? `BLOCKED in ${getReviewPhase(result.round)} phase`
+          : `Approved after ${result.round} rounds`
         : `Reviewed — ${result.feedback.issues.length} issues`;
       const statusLine = writeStatusLineToPlan(
         session,
@@ -119,21 +121,45 @@ export function registerGetFeedback(server: McpServer): void {
         status_line: statusLine,
       };
 
+      // Phase-specific lean fields for status line consumption
+      if (result.phaseExtras.is_blocked) {
+        response.is_blocked = true;
+      }
+      if (phase === "direction" && result.phaseExtras.confidence) {
+        response.confidence = result.phaseExtras.confidence;
+      }
+      if (phase === "risk") {
+        if (result.phaseExtras.risk_level) {
+          response.risk_level = result.phaseExtras.risk_level;
+        }
+        if (result.phaseExtras.risk_count !== undefined) {
+          response.risk_count = result.phaseExtras.risk_count;
+        }
+        if (result.phaseExtras.risks_promoted !== undefined) {
+          response.risks_promoted = result.phaseExtras.risks_promoted;
+        }
+      }
+
       if (result.converged) {
-        session.status = "approved";
-        const planPath = resolve(cwd, session.planPath);
-        let planContent = readFileSync(planPath, "utf-8");
-        planContent = planContent.replace(
-          /\*\*Status:\*\* .*/,
-          "**Status:** Approved",
-        );
-        writeFileSync(planPath, planContent);
+        if (result.feedback.verdict === "blocked") {
+          session.status = "blocked";
+        } else {
+          session.status = "approved";
+          const planPath = resolve(cwd, session.planPath);
+          let planContent = readFileSync(planPath, "utf-8");
+          planContent = planContent.replace(
+            /\*\*Status:\*\* .*/,
+            "**Status:** Approved",
+          );
+          writeFileSync(planPath, planContent);
+        }
         writeSessionState(cwd, session);
 
         // Include initial plan for change summary
         const initialPlan = readInitialPlan(cwd, session.id);
         if (initialPlan) {
           response.initial_plan = initialPlan;
+          const planPath = resolve(cwd, session.planPath);
           response.final_plan = readFileSync(planPath, "utf-8");
         }
       }

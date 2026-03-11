@@ -3,7 +3,12 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import type { Provider } from "../providers/types.js";
 import type { PlanpongConfig, ProviderConfig } from "../schemas/config.js";
-import type { ReviewFeedback } from "../schemas/feedback.js";
+import type {
+  ReviewFeedback,
+  PhaseFeedback,
+  DirectionFeedback,
+  RiskFeedback,
+} from "../schemas/feedback.js";
 import type { PlannerRevision, IssueResponse } from "../schemas/revision.js";
 import { buildRevisionPrompt } from "../prompts/planner.js";
 import {
@@ -11,7 +16,12 @@ import {
   formatPriorDecisions,
   getReviewPhase,
 } from "../prompts/reviewer.js";
-import { parseFeedback, parseRevision, isConverged } from "./convergence.js";
+import {
+  parseFeedback,
+  parseFeedbackForPhase,
+  parseRevision,
+  isConverged,
+} from "./convergence.js";
 import {
   createSession,
   writeSessionState,
@@ -31,11 +41,20 @@ export interface RoundSeverity {
   P3: number;
 }
 
+export interface PhaseExtras {
+  confidence?: "high" | "medium" | "low";
+  risk_level?: "high" | "medium" | "low";
+  risk_count?: number;
+  risks_promoted?: number;
+  is_blocked?: boolean;
+}
+
 export interface ReviewRoundResult {
   round: number;
-  feedback: ReviewFeedback;
+  feedback: PhaseFeedback;
   severity: RoundSeverity;
   converged: boolean;
+  phaseExtras: PhaseExtras;
 }
 
 export interface RevisionRoundResult {
@@ -84,7 +103,7 @@ export function formatTrajectory(trajectory: RoundSeverity[]): string {
   return trajectory.map(formatRoundSeverity).join(" → ");
 }
 
-export function severityFromFeedback(feedback: ReviewFeedback): RoundSeverity {
+export function severityFromFeedback(feedback: PhaseFeedback): RoundSeverity {
   const counts: RoundSeverity = { P1: 0, P2: 0, P3: 0 };
   for (const issue of feedback.issues) {
     counts[issue.severity]++;
@@ -164,6 +183,32 @@ export function computeSessionStats(
   };
 }
 
+export function formatPhaseExtras(
+  phase: ReturnType<typeof getReviewPhase>,
+  extras: PhaseExtras,
+): string {
+  if (extras.is_blocked) {
+    if (phase === "risk" && extras.risk_count) {
+      return `BLOCKED | ${extras.risk_count} unmitigable risks`;
+    }
+    return "BLOCKED";
+  }
+
+  const parts: string[] = [];
+  if (phase === "direction" && extras.confidence) {
+    parts.push(`confidence: ${extras.confidence}`);
+  }
+  if (phase === "risk") {
+    if (extras.risk_level) {
+      parts.push(`risk: ${extras.risk_level}`);
+    }
+    if (extras.risk_count !== undefined && extras.risks_promoted !== undefined) {
+      parts.push(`${extras.risk_count} risks (${extras.risks_promoted} promoted)`);
+    }
+  }
+  return parts.join(" | ");
+}
+
 export function buildStatusLine(
   session: Session,
   config: PlanpongConfig,
@@ -174,6 +219,7 @@ export function buildStatusLine(
   linesAdded: number,
   linesRemoved: number,
   elapsed: number,
+  phaseExtras?: PhaseExtras,
 ): string {
   const plannerLabel = formatProviderLabel(config.planner);
   const reviewerLabel = formatProviderLabel(config.reviewer);
@@ -181,9 +227,16 @@ export function buildStatusLine(
   const tallies = formatTallies(accepted, rejected, deferred);
   const elapsedStr = formatDuration(elapsed);
 
+  const phase = getReviewPhase(session.currentRound);
+  const phaseSignal = phaseExtras
+    ? formatPhaseExtras(phase, phaseExtras)
+    : "";
+
   const parts = [
     `**planpong:** R${session.currentRound}/${config.max_rounds}`,
     `${plannerLabel} → ${reviewerLabel}`,
+    phase,
+    phaseSignal,
     trajectory,
     tallies,
     `+${linesAdded}/-${linesRemoved} lines`,
@@ -353,9 +406,9 @@ export async function runReviewRound(
   });
 
   // Try to parse even on non-zero exit — CLIs can exit 1 with valid output
-  let feedback: ReviewFeedback;
+  let feedback: PhaseFeedback;
   try {
-    feedback = parseFeedback(reviewResponse.content);
+    feedback = parseFeedbackForPhase(reviewResponse.content, phase);
   } catch (parseError) {
     // If exit code was also non-zero, the provider genuinely failed
     if (reviewResponse.exitCode !== 0) {
@@ -370,14 +423,33 @@ export async function runReviewRound(
       model: config.reviewer.model,
       effort: config.reviewer.effort,
     });
-    feedback = parseFeedback(retryResponse.content);
+    feedback = parseFeedbackForPhase(retryResponse.content, phase);
   }
 
   writeRoundFeedback(cwd, session.id, round, feedback);
   const severity = severityFromFeedback(feedback);
-  const converged = isConverged(feedback, round);
+  const converged = isConverged(feedback);
 
-  return { round, feedback, severity, converged };
+  // Extract phase-specific extras for status line
+  const phaseExtras: PhaseExtras = {};
+  if (feedback.verdict === "blocked") {
+    phaseExtras.is_blocked = true;
+    session.status = "blocked";
+    writeSessionState(cwd, session);
+  }
+  if (phase === "direction" && "confidence" in feedback) {
+    phaseExtras.confidence = (feedback as DirectionFeedback).confidence;
+  }
+  if (phase === "risk") {
+    if ("risk_level" in feedback) {
+      const riskFb = feedback as RiskFeedback;
+      phaseExtras.risk_level = riskFb.risk_level;
+      phaseExtras.risk_count = riskFb.risks?.length ?? 0;
+      phaseExtras.risks_promoted = feedback.issues.length;
+    }
+  }
+
+  return { round, feedback, severity, converged, phaseExtras };
 }
 
 /**

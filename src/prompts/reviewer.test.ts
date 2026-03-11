@@ -79,6 +79,60 @@ describe("buildReviewPrompt", () => {
     expect(prompt).toContain("planpong-feedback");
     expect(prompt).toContain("needs_revision");
   });
+
+  // Phase-specific JSON schema tests
+  it("includes direction-specific JSON schema fields in direction phase", () => {
+    const prompt = buildReviewPrompt(plan, null, "direction");
+    expect(prompt).toContain('"confidence"');
+    expect(prompt).toContain('"approach_assessment"');
+    expect(prompt).toContain('"alternatives"');
+    expect(prompt).toContain('"assumptions"');
+    // Should not include risk-specific fields
+    expect(prompt).not.toContain('"risk_level"');
+    expect(prompt).not.toContain('"risks"');
+  });
+
+  it("includes risk-specific JSON schema fields in risk phase", () => {
+    const prompt = buildReviewPrompt(plan, null, "risk");
+    expect(prompt).toContain('"risk_level"');
+    expect(prompt).toContain('"risks"');
+    expect(prompt).toContain('"category"');
+    expect(prompt).toContain('"likelihood"');
+    expect(prompt).toContain('"impact"');
+    expect(prompt).toContain('"mitigation"');
+    // Should not include direction-specific fields
+    expect(prompt).not.toContain('"confidence"');
+    expect(prompt).not.toContain('"approach_assessment"');
+  });
+
+  it("includes standard JSON schema for detail phase", () => {
+    const prompt = buildReviewPrompt(plan, null, "detail");
+    expect(prompt).toContain('"approved"');
+    expect(prompt).toContain('"approved_with_notes"');
+    // Should not include phase-specific fields
+    expect(prompt).not.toContain('"confidence"');
+    expect(prompt).not.toContain('"risk_level"');
+  });
+
+  // Blocked verdict guidance
+  it("includes blocked verdict guidance in direction phase", () => {
+    const prompt = buildReviewPrompt(plan, null, "direction");
+    expect(prompt).toContain("blocked");
+    expect(prompt).toContain("fundamentally non-viable");
+    expect(prompt).toContain("CANNOT approve");
+  });
+
+  it("includes blocked verdict guidance in risk phase", () => {
+    const prompt = buildReviewPrompt(plan, null, "risk");
+    expect(prompt).toContain("blocked");
+    expect(prompt).toContain("unmitigable");
+    expect(prompt).toContain("CANNOT approve");
+  });
+
+  it("does not include blocked verdict in detail phase", () => {
+    const prompt = buildReviewPrompt(plan, null, "detail");
+    expect(prompt).not.toContain('"blocked"');
+  });
 });
 
 // --- formatPriorDecisions ---

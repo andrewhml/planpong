@@ -5,6 +5,7 @@ import { registerGetFeedback } from "./tools/get-feedback.js";
 import { registerRevise } from "./tools/revise.js";
 import { registerStatus } from "./tools/status.js";
 import { registerListSessions } from "./tools/list-sessions.js";
+import { registerGetReport } from "./tools/get-report.js";
 export function createPlanpongServer() {
     const server = new McpServer({
         name: "planpong",
@@ -34,13 +35,19 @@ Execution mode (check the "interactive" field in planpong_start_review response)
 When the review completes (converged OR max rounds reached):
 1. Display the status_line from the final tool response — this is the canonical summary.
 2. Generate a "Summary of what changed" table comparing the initial plan to the final plan. The final get_feedback response includes initial_plan and final_plan when converged. For max rounds, read the plan file yourself. The table should have columns: Area | Original | Final — showing the key decisions and approaches that changed during the review. Keep it to the most meaningful changes (5-10 rows max). Use a markdown table.
-3. If the review hit max rounds without converging, note which reviewer concerns remain unresolved and whether they are substantive or deployment-level details.`,
+3. If the review hit max rounds without converging, note which reviewer concerns remain unresolved and whether they are substantive or deployment-level details.
+
+Phase-specific feedback:
+- Direction phase (R1) returns a confidence level. Risk phase (R2) returns a risk level and risk register summary.
+- If is_blocked is true, the review has been terminated early because the plan is fundamentally non-viable. Do NOT call planpong_revise — instead show the blocking rationale and suggest the user fix the underlying issue.
+- Use planpong_get_report after the review completes to get detailed phase-specific data (alternatives, assumptions, full risk register) on demand.`,
     });
     registerStartReview(server);
     registerGetFeedback(server);
     registerRevise(server);
     registerStatus(server);
     registerListSessions(server);
+    registerGetReport(server);
     // MCP prompts — become slash commands in Claude Code
     server.registerPrompt("review", {
         title: "Review a plan",
@@ -107,6 +114,23 @@ When the review completes (converged OR max rounds reached):
                 content: {
                     type: "text",
                     text: "List all planpong review sessions in this project.",
+                },
+            },
+        ],
+    }));
+    server.registerPrompt("report", {
+        title: "Get review report",
+        description: "Get a detailed phase-specific report for a completed or in-progress review session",
+        argsSchema: {
+            session_id: z.string().describe("Session ID to generate report for"),
+        },
+    }, (args) => ({
+        messages: [
+            {
+                role: "user",
+                content: {
+                    type: "text",
+                    text: `Get the detailed report for planpong session ${args.session_id}. Show the direction assessment (confidence, alternatives, assumptions), risk register (risks with likelihood/impact), and detail round history. Present the information in a readable format.`,
                 },
             },
         ],

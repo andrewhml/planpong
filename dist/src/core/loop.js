@@ -76,7 +76,13 @@ export async function runLoop(options) {
         await callbacks.onReviewComplete(round, reviewResult.feedback);
         // Check convergence
         if (reviewResult.converged) {
-            finalizeApproved(session, cwd, config, issueTrajectory, totalAccepted, totalRejected, totalDeferred, startTime, initialLineCount);
+            if (reviewResult.feedback.verdict === "blocked") {
+                session.status = "blocked";
+                writeSessionState(cwd, session);
+            }
+            else {
+                finalizeApproved(session, cwd, config, issueTrajectory, totalAccepted, totalRejected, totalDeferred, startTime, initialLineCount);
+            }
             callbacks.onConverged(round, reviewResult.feedback);
             return;
         }
@@ -119,7 +125,7 @@ export async function runLoop(options) {
         const linesAdded = Math.max(0, currentLines - initialLineCount);
         const linesRemoved = Math.max(0, initialLineCount - currentLines);
         const elapsed = Date.now() - startTime;
-        const statusLine = buildStatusLine(session, config, issueTrajectory, totalAccepted, totalRejected, totalDeferred, linesAdded, linesRemoved, elapsed);
+        const statusLine = buildStatusLine(session, config, issueTrajectory, totalAccepted, totalRejected, totalDeferred, linesAdded, linesRemoved, elapsed, reviewResult.phaseExtras);
         planContent = updatePlanStatusLine(planContent, statusLine);
         writeFileSync(planPath, planContent);
         session.planHash = hashFile(planPath);
@@ -158,10 +164,16 @@ export async function runReviewLoop(options) {
         await callbacks.onReviewComplete(round, reviewResult.feedback);
         // Check convergence
         if (reviewResult.converged) {
-            finalizeApproved(session, cwd, config, issueTrajectory, totalAccepted, totalRejected, totalDeferred, startTime, initialLineCount);
+            if (reviewResult.feedback.verdict === "blocked") {
+                session.status = "blocked";
+                writeSessionState(cwd, session);
+            }
+            else {
+                finalizeApproved(session, cwd, config, issueTrajectory, totalAccepted, totalRejected, totalDeferred, startTime, initialLineCount);
+            }
             callbacks.onConverged(round, reviewResult.feedback);
             return {
-                status: "approved",
+                status: reviewResult.feedback.verdict === "blocked" ? "aborted" : "approved",
                 rounds: round,
                 issueTrajectory,
                 accepted: totalAccepted,
@@ -231,7 +243,7 @@ export async function runReviewLoop(options) {
         const linesAdded = Math.max(0, currentLines - initialLineCount);
         const linesRemoved = Math.max(0, initialLineCount - currentLines);
         const elapsed = Date.now() - startTime;
-        const statusLine = buildStatusLine(session, config, issueTrajectory, totalAccepted, totalRejected, totalDeferred, linesAdded, linesRemoved, elapsed);
+        const statusLine = buildStatusLine(session, config, issueTrajectory, totalAccepted, totalRejected, totalDeferred, linesAdded, linesRemoved, elapsed, reviewResult.phaseExtras);
         const updatedPlan = updatePlanStatusLine(currentPlan, statusLine);
         writeFileSync(planPath, updatedPlan);
         session.planHash = hashFile(planPath);

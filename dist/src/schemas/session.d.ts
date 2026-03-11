@@ -30,14 +30,14 @@ export declare const SessionSchema: z.ZodObject<{
         model?: string | undefined;
         effort?: string | undefined;
     }>;
-    status: z.ZodEnum<["planning", "in_review", "approved", "aborted"]>;
+    status: z.ZodEnum<["planning", "in_review", "approved", "blocked", "aborted"]>;
     currentRound: z.ZodNumber;
     startedAt: z.ZodString;
     planHash: z.ZodString;
     initialLineCount: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     id: string;
-    status: "aborted" | "approved" | "planning" | "in_review";
+    status: "aborted" | "approved" | "blocked" | "planning" | "in_review";
     planner: {
         provider: string;
         model?: string | undefined;
@@ -57,7 +57,7 @@ export declare const SessionSchema: z.ZodObject<{
     initialLineCount?: number | undefined;
 }, {
     id: string;
-    status: "aborted" | "approved" | "planning" | "in_review";
+    status: "aborted" | "approved" | "blocked" | "planning" | "in_review";
     planner: {
         provider: string;
         model?: string | undefined;

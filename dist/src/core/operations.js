@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { buildRevisionPrompt } from "../prompts/planner.js";
 import { buildReviewPrompt, formatPriorDecisions, getReviewPhase, } from "../prompts/reviewer.js";
-import { parseFeedback, parseRevision, isConverged } from "./convergence.js";
+import { parseFeedbackForPhase, parseRevision, isConverged, } from "./convergence.js";
 import { createSession, writeSessionState, writeRoundFeedback, writeRoundResponse, readRoundFeedback, readRoundResponse, writeInitialPlan, } from "./session.js";
 // --- Utility functions ---
 export function hashFile(path) {
@@ -97,15 +97,42 @@ export function computeSessionStats(cwd, sessionId, currentRound) {
         totalDeferred,
     };
 }
-export function buildStatusLine(session, config, issueTrajectory, accepted, rejected, deferred, linesAdded, linesRemoved, elapsed) {
+export function formatPhaseExtras(phase, extras) {
+    if (extras.is_blocked) {
+        if (phase === "risk" && extras.risk_count) {
+            return `BLOCKED | ${extras.risk_count} unmitigable risks`;
+        }
+        return "BLOCKED";
+    }
+    const parts = [];
+    if (phase === "direction" && extras.confidence) {
+        parts.push(`confidence: ${extras.confidence}`);
+    }
+    if (phase === "risk") {
+        if (extras.risk_level) {
+            parts.push(`risk: ${extras.risk_level}`);
+        }
+        if (extras.risk_count !== undefined && extras.risks_promoted !== undefined) {
+            parts.push(`${extras.risk_count} risks (${extras.risks_promoted} promoted)`);
+        }
+    }
+    return parts.join(" | ");
+}
+export function buildStatusLine(session, config, issueTrajectory, accepted, rejected, deferred, linesAdded, linesRemoved, elapsed, phaseExtras) {
     const plannerLabel = formatProviderLabel(config.planner);
     const reviewerLabel = formatProviderLabel(config.reviewer);
     const trajectory = formatTrajectory(issueTrajectory);
     const tallies = formatTallies(accepted, rejected, deferred);
     const elapsedStr = formatDuration(elapsed);
+    const phase = getReviewPhase(session.currentRound);
+    const phaseSignal = phaseExtras
+        ? formatPhaseExtras(phase, phaseExtras)
+        : "";
     const parts = [
         `**planpong:** R${session.currentRound}/${config.max_rounds}`,
         `${plannerLabel} → ${reviewerLabel}`,
+        phase,
+        phaseSignal,
         trajectory,
         tallies,
         `+${linesAdded}/-${linesRemoved} lines`,
@@ -217,7 +244,7 @@ export async function runReviewRound(session, cwd, config, reviewerProvider) {
     // Try to parse even on non-zero exit — CLIs can exit 1 with valid output
     let feedback;
     try {
-        feedback = parseFeedback(reviewResponse.content);
+        feedback = parseFeedbackForPhase(reviewResponse.content, phase);
     }
     catch (parseError) {
         // If exit code was also non-zero, the provider genuinely failed
@@ -231,12 +258,30 @@ export async function runReviewRound(session, cwd, config, reviewerProvider) {
             model: config.reviewer.model,
             effort: config.reviewer.effort,
         });
-        feedback = parseFeedback(retryResponse.content);
+        feedback = parseFeedbackForPhase(retryResponse.content, phase);
     }
     writeRoundFeedback(cwd, session.id, round, feedback);
     const severity = severityFromFeedback(feedback);
-    const converged = isConverged(feedback, round);
-    return { round, feedback, severity, converged };
+    const converged = isConverged(feedback);
+    // Extract phase-specific extras for status line
+    const phaseExtras = {};
+    if (feedback.verdict === "blocked") {
+        phaseExtras.is_blocked = true;
+        session.status = "blocked";
+        writeSessionState(cwd, session);
+    }
+    if (phase === "direction" && "confidence" in feedback) {
+        phaseExtras.confidence = feedback.confidence;
+    }
+    if (phase === "risk") {
+        if ("risk_level" in feedback) {
+            const riskFb = feedback;
+            phaseExtras.risk_level = riskFb.risk_level;
+            phaseExtras.risk_count = riskFb.risks?.length ?? 0;
+            phaseExtras.risks_promoted = feedback.issues.length;
+        }
+    }
+    return { round, feedback, severity, converged, phaseExtras };
 }
 /**
  * Run a single revision round: send plan + feedback to the planner for revision.

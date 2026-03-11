@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { extractJSON, parseFeedback, parseRevision, isConverged } from "./convergence.js";
+import {
+  extractJSON,
+  parseFeedback,
+  parseFeedbackForPhase,
+  parseRevision,
+  isConverged,
+} from "./convergence.js";
 import type { ReviewFeedback } from "../schemas/feedback.js";
 
 // --- extractJSON ---
@@ -72,6 +78,19 @@ describe("parseFeedback", () => {
     const result = parseFeedback(input);
     expect(result.verdict).toBe("approved");
     expect(result.issues).toHaveLength(0);
+  });
+
+  it("parses blocked verdict", () => {
+    const fb = {
+      verdict: "blocked",
+      summary: "Non-viable",
+      issues: [
+        { id: "F1", severity: "P1", section: "s", title: "t", description: "d", suggestion: "s" },
+      ],
+    };
+    const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+    const result = parseFeedback(input);
+    expect(result.verdict).toBe("blocked");
   });
 
   it("rejects approved_with_notes when issues have P1/P2", () => {
@@ -211,36 +230,262 @@ describe("isConverged", () => {
     ],
   };
 
-  it("returns false in round 1 (direction) even if approved", () => {
-    expect(isConverged(approved, 1)).toBe(false);
+  const blocked: ReviewFeedback = {
+    verdict: "blocked",
+    summary: "Non-viable",
+    issues: [
+      {
+        id: "F1",
+        severity: "P1",
+        section: "s",
+        title: "t",
+        description: "d",
+        suggestion: "s",
+      },
+    ],
+  };
+
+  it("returns true when approved", () => {
+    expect(isConverged(approved)).toBe(true);
   });
 
-  it("returns false in round 2 (risk) even if approved", () => {
-    expect(isConverged(approved, 2)).toBe(false);
+  it("returns true when approved_with_notes", () => {
+    expect(isConverged(approvedWithNotes)).toBe(true);
   });
 
-  it("returns false in round 2 even with approved_with_notes", () => {
-    expect(isConverged(approvedWithNotes, 2)).toBe(false);
+  it("returns false when needs_revision", () => {
+    expect(isConverged(needsRevision)).toBe(false);
   });
 
-  it("returns true in round 3 (detail) when approved", () => {
-    expect(isConverged(approved, 3)).toBe(true);
+  it("returns true when blocked", () => {
+    expect(isConverged(blocked)).toBe(true);
+  });
+});
+
+// --- parseFeedbackForPhase ---
+
+describe("parseFeedbackForPhase", () => {
+  const makeIssue = (id: string) => ({
+    id,
+    severity: "P2" as const,
+    section: "s",
+    title: "t",
+    description: "d",
+    suggestion: "s",
   });
 
-  it("returns true in round 3 with approved_with_notes", () => {
-    expect(isConverged(approvedWithNotes, 3)).toBe(true);
+  describe("direction phase", () => {
+    it("parses full direction feedback", () => {
+      const fb = {
+        verdict: "needs_revision",
+        summary: "Direction assessment",
+        confidence: "medium",
+        approach_assessment: "The approach is reasonable",
+        alternatives: [{ approach: "Alt A", tradeoff: "More complex" }],
+        assumptions: ["API is stable"],
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "direction");
+      expect(result.verdict).toBe("needs_revision");
+      expect("confidence" in result && result.confidence).toBe("medium");
+      expect("approach_assessment" in result && result.approach_assessment).toBe(
+        "The approach is reasonable",
+      );
+    });
+
+    it("falls back to base schema and coerces verdict to needs_revision", () => {
+      // Missing direction-specific fields → phase parse fails → fallback
+      const fb = {
+        verdict: "approved",
+        summary: "Looks good",
+        issues: [],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "direction");
+      // Should be coerced to needs_revision
+      expect(result.verdict).toBe("needs_revision");
+      expect(result.fallback_used).toBe(true);
+    });
+
+    it("preserves blocked verdict with valid approach_assessment", () => {
+      const fb = {
+        verdict: "blocked",
+        summary: "Non-viable",
+        confidence: "low",
+        approach_assessment: "Depends on deprecated API",
+        alternatives: [],
+        assumptions: [],
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "direction");
+      expect(result.verdict).toBe("blocked");
+    });
+
+    it("coerces blocked to needs_revision when approach_assessment is empty", () => {
+      const fb = {
+        verdict: "blocked",
+        summary: "Non-viable",
+        confidence: "low",
+        approach_assessment: "",
+        alternatives: [],
+        assumptions: [],
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "direction");
+      expect(result.verdict).toBe("needs_revision");
+    });
+
+    it("fallback blocked with recoverable rationale preserves blocked", () => {
+      // Has blocked + approach_assessment but missing other direction fields
+      // → phase parse fails → fallback → secondary extraction recovers rationale
+      const fb = {
+        verdict: "blocked",
+        summary: "Non-viable",
+        approach_assessment: "Depends on deprecated API",
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "direction");
+      expect(result.verdict).toBe("blocked");
+      expect(result.fallback_used).toBe(true);
+    });
+
+    it("fallback blocked without rationale coerces to needs_revision", () => {
+      const fb = {
+        verdict: "blocked",
+        summary: "Non-viable",
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "direction");
+      expect(result.verdict).toBe("needs_revision");
+      expect(result.fallback_used).toBe(true);
+    });
   });
 
-  it("returns false in round 3 when needs_revision", () => {
-    expect(isConverged(needsRevision, 3)).toBe(false);
+  describe("risk phase", () => {
+    it("parses full risk feedback", () => {
+      const fb = {
+        verdict: "needs_revision",
+        summary: "Risk assessment",
+        risk_level: "high",
+        risks: [
+          {
+            id: "R1",
+            category: "dependency",
+            likelihood: "high",
+            impact: "high",
+            title: "External API",
+            description: "May be unavailable",
+            mitigation: "Add fallback",
+          },
+        ],
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "risk");
+      expect(result.verdict).toBe("needs_revision");
+      expect("risk_level" in result && result.risk_level).toBe("high");
+      expect("risks" in result && result.risks).toHaveLength(1);
+    });
+
+    it("falls back to base schema and coerces verdict", () => {
+      const fb = {
+        verdict: "approved",
+        summary: "No risks",
+        issues: [],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "risk");
+      expect(result.verdict).toBe("needs_revision");
+      expect(result.fallback_used).toBe(true);
+    });
+
+    it("preserves blocked verdict with non-empty risks", () => {
+      const fb = {
+        verdict: "blocked",
+        summary: "Unmitigable",
+        risk_level: "high",
+        risks: [
+          {
+            id: "R1",
+            category: "external",
+            likelihood: "high",
+            impact: "high",
+            title: "Hard blocker",
+            description: "Cannot proceed",
+            mitigation: "None available",
+          },
+        ],
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "risk");
+      expect(result.verdict).toBe("blocked");
+    });
+
+    it("coerces blocked to needs_revision when risks is empty", () => {
+      const fb = {
+        verdict: "blocked",
+        summary: "Blocked",
+        risk_level: "high",
+        risks: [],
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "risk");
+      expect(result.verdict).toBe("needs_revision");
+    });
+
+    it("fallback blocked with recoverable risks preserves blocked", () => {
+      const fb = {
+        verdict: "blocked",
+        summary: "Unmitigable",
+        risks: [
+          {
+            id: "R1",
+            category: "external",
+            likelihood: "high",
+            impact: "high",
+            title: "Hard blocker",
+            description: "Cannot proceed",
+            mitigation: "None",
+          },
+        ],
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "risk");
+      expect(result.verdict).toBe("blocked");
+      expect(result.fallback_used).toBe(true);
+    });
+
+    it("fallback blocked without risks coerces to needs_revision", () => {
+      const fb = {
+        verdict: "blocked",
+        summary: "Blocked",
+        issues: [makeIssue("F1")],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "risk");
+      expect(result.verdict).toBe("needs_revision");
+      expect(result.fallback_used).toBe(true);
+    });
   });
 
-  it("returns true in later rounds when approved", () => {
-    expect(isConverged(approved, 5)).toBe(true);
-    expect(isConverged(approved, 10)).toBe(true);
-  });
-
-  it("returns false in later rounds when needs_revision", () => {
-    expect(isConverged(needsRevision, 5)).toBe(false);
+  describe("detail phase", () => {
+    it("passes through to base parser unchanged", () => {
+      const fb = {
+        verdict: "approved",
+        summary: "All good",
+        issues: [],
+      };
+      const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+      const result = parseFeedbackForPhase(input, "detail");
+      expect(result.verdict).toBe("approved");
+    });
   });
 });
