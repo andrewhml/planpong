@@ -1,18 +1,27 @@
 import type { Provider } from "../providers/types.js";
 import type { PlanpongConfig, ProviderConfig } from "../schemas/config.js";
-import type { ReviewFeedback } from "../schemas/feedback.js";
+import type { PhaseFeedback } from "../schemas/feedback.js";
 import type { PlannerRevision } from "../schemas/revision.js";
+import { getReviewPhase } from "../prompts/reviewer.js";
 import type { Session } from "../schemas/session.js";
 export interface RoundSeverity {
     P1: number;
     P2: number;
     P3: number;
 }
+export interface PhaseExtras {
+    confidence?: "high" | "medium" | "low";
+    risk_level?: "high" | "medium" | "low";
+    risk_count?: number;
+    risks_promoted?: number;
+    is_blocked?: boolean;
+}
 export interface ReviewRoundResult {
     round: number;
-    feedback: ReviewFeedback;
+    feedback: PhaseFeedback;
     severity: RoundSeverity;
     converged: boolean;
+    phaseExtras: PhaseExtras;
 }
 export interface RevisionRoundResult {
     round: number;
@@ -30,7 +39,7 @@ export interface SessionInit {
 export declare function hashFile(path: string): string;
 export declare function formatRoundSeverity(round: RoundSeverity): string;
 export declare function formatTrajectory(trajectory: RoundSeverity[]): string;
-export declare function severityFromFeedback(feedback: ReviewFeedback): RoundSeverity;
+export declare function severityFromFeedback(feedback: PhaseFeedback): RoundSeverity;
 export declare function formatTallies(accepted: number, rejected: number, deferred: number): string;
 export declare function formatDuration(ms: number): string;
 export declare function formatProviderLabel(provider: ProviderConfig): string;
@@ -41,7 +50,8 @@ export interface SessionStats {
     totalDeferred: number;
 }
 export declare function computeSessionStats(cwd: string, sessionId: string, currentRound: number): SessionStats;
-export declare function buildStatusLine(session: Session, config: PlanpongConfig, issueTrajectory: RoundSeverity[], accepted: number, rejected: number, deferred: number, linesAdded: number, linesRemoved: number, elapsed: number): string;
+export declare function formatPhaseExtras(phase: ReturnType<typeof getReviewPhase>, extras: PhaseExtras): string;
+export declare function buildStatusLine(session: Session, config: PlanpongConfig, issueTrajectory: RoundSeverity[], accepted: number, rejected: number, deferred: number, linesAdded: number, linesRemoved: number, elapsed: number, phaseExtras?: PhaseExtras): string;
 /**
  * Build and write the status line to the plan file.
  * Used by both CLI and MCP paths after each round.

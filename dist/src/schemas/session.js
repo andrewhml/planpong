@@ -7,7 +7,7 @@ export const SessionSchema = z.object({
     planPathAbsolute: z.string(),
     planner: ProviderConfigSchema,
     reviewer: ProviderConfigSchema,
-    status: z.enum(["planning", "in_review", "approved", "aborted"]),
+    status: z.enum(["planning", "in_review", "approved", "blocked", "aborted"]),
     currentRound: z.number().int().min(0),
     startedAt: z.string(),
     planHash: z.string(),

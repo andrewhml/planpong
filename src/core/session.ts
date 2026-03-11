@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Session } from "../schemas/session.js";
-import type { ReviewFeedback } from "../schemas/feedback.js";
+import type { ReviewFeedback, PhaseFeedback } from "../schemas/feedback.js";
 import type { PlannerRevision } from "../schemas/revision.js";
 import type { ProviderConfig } from "../schemas/config.js";
 
@@ -57,7 +57,7 @@ export function writeRoundFeedback(
   repoRoot: string,
   sessionId: string,
   round: number,
-  feedback: ReviewFeedback,
+  feedback: PhaseFeedback,
 ): void {
   const dir = getSessionDir(repoRoot, sessionId);
   writeFileSync(
@@ -83,13 +83,13 @@ export function readRoundFeedback(
   repoRoot: string,
   sessionId: string,
   round: number,
-): ReviewFeedback | null {
+): PhaseFeedback | null {
   const path = join(
     getSessionDir(repoRoot, sessionId),
     `round-${round}-feedback.json`,
   );
   if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf-8")) as ReviewFeedback;
+  return JSON.parse(readFileSync(path, "utf-8")) as PhaseFeedback;
 }
 
 export function readRoundResponse(

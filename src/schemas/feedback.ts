@@ -9,11 +9,21 @@ export const FeedbackIssueSchema = z.object({
   suggestion: z.string(),
 });
 
+// Base verdict enum includes `blocked` so fallback parsing can accept it
+// from direction/risk phases when phase-specific parsing fails.
 export const ReviewFeedbackSchema = z
   .object({
-    verdict: z.enum(["needs_revision", "approved", "approved_with_notes"]),
+    verdict: z.enum([
+      "needs_revision",
+      "approved",
+      "approved_with_notes",
+      "blocked",
+    ]),
     summary: z.string(),
     issues: z.array(FeedbackIssueSchema),
+    // Fallback observability — set by parseFeedbackForPhase when fallback is used
+    fallback_used: z.boolean().optional(),
+    missing_phase_fields: z.array(z.string()).optional(),
   })
   .refine(
     (data) => {
@@ -28,5 +38,59 @@ export const ReviewFeedbackSchema = z
     },
   );
 
+// --- Direction phase schema ---
+
+export const AlternativeSchema = z.object({
+  approach: z.string(),
+  tradeoff: z.string(),
+});
+
+export const DirectionFeedbackSchema = z.object({
+  verdict: z.enum(["needs_revision", "blocked"]),
+  summary: z.string(),
+  issues: z.array(FeedbackIssueSchema),
+  confidence: z.enum(["high", "medium", "low"]),
+  approach_assessment: z.string(),
+  alternatives: z.array(AlternativeSchema),
+  assumptions: z.array(z.string()),
+  fallback_used: z.boolean().optional(),
+  missing_phase_fields: z.array(z.string()).optional(),
+});
+
+// --- Risk phase schema ---
+
+export const RiskEntrySchema = z.object({
+  id: z.string(),
+  category: z.enum([
+    "dependency",
+    "integration",
+    "operational",
+    "assumption",
+    "external",
+  ]),
+  likelihood: z.enum(["high", "medium", "low"]),
+  impact: z.enum(["high", "medium", "low"]),
+  title: z.string(),
+  description: z.string(),
+  mitigation: z.string(),
+});
+
+export const RiskFeedbackSchema = z.object({
+  verdict: z.enum(["needs_revision", "blocked"]),
+  summary: z.string(),
+  issues: z.array(FeedbackIssueSchema),
+  risk_level: z.enum(["high", "medium", "low"]),
+  risks: z.array(RiskEntrySchema),
+  fallback_used: z.boolean().optional(),
+  missing_phase_fields: z.array(z.string()).optional(),
+});
+
+// --- Union type ---
+
 export type FeedbackIssue = z.infer<typeof FeedbackIssueSchema>;
 export type ReviewFeedback = z.infer<typeof ReviewFeedbackSchema>;
+export type DirectionFeedback = z.infer<typeof DirectionFeedbackSchema>;
+export type RiskFeedback = z.infer<typeof RiskFeedbackSchema>;
+export type RiskEntry = z.infer<typeof RiskEntrySchema>;
+export type Alternative = z.infer<typeof AlternativeSchema>;
+export type PhaseFeedback = DirectionFeedback | RiskFeedback | ReviewFeedback;

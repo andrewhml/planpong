@@ -1,16 +1,16 @@
 import type { Provider } from "../providers/types.js";
 import type { PlanpongConfig } from "../schemas/config.js";
-import type { ReviewFeedback } from "../schemas/feedback.js";
+import type { PhaseFeedback } from "../schemas/feedback.js";
 import type { PlannerRevision } from "../schemas/revision.js";
 import { type RoundSeverity } from "./operations.js";
 export type { RoundSeverity } from "./operations.js";
 export interface LoopCallbacks {
     onPlanGenerated(planPath: string, content: string): Promise<void>;
     onReviewStarting(round: number): void;
-    onReviewComplete(round: number, feedback: ReviewFeedback): Promise<void>;
+    onReviewComplete(round: number, feedback: PhaseFeedback): Promise<void>;
     onRevisionStarting(round: number): void;
     onRevisionComplete(round: number, revision: PlannerRevision): Promise<void>;
-    onConverged(round: number, feedback: ReviewFeedback): void;
+    onConverged(round: number, feedback: PhaseFeedback): void;
     onMaxRoundsReached(round: number): void;
     onHashMismatch(planPath: string, autonomous: boolean): Promise<"overwrite" | "abort">;
     /** Return true to continue, false to abort */

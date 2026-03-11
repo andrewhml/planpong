@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { Provider } from "../providers/types.js";
 import type { PlanpongConfig } from "../schemas/config.js";
-import type { ReviewFeedback } from "../schemas/feedback.js";
+import type { PhaseFeedback } from "../schemas/feedback.js";
 import type { PlannerRevision } from "../schemas/revision.js";
 import { buildInitialPlanPrompt } from "../prompts/planner.js";
 import { createSession, writeSessionState } from "./session.js";
@@ -24,10 +24,10 @@ export type { RoundSeverity } from "./operations.js";
 export interface LoopCallbacks {
   onPlanGenerated(planPath: string, content: string): Promise<void>;
   onReviewStarting(round: number): void;
-  onReviewComplete(round: number, feedback: ReviewFeedback): Promise<void>;
+  onReviewComplete(round: number, feedback: PhaseFeedback): Promise<void>;
   onRevisionStarting(round: number): void;
   onRevisionComplete(round: number, revision: PlannerRevision): Promise<void>;
-  onConverged(round: number, feedback: ReviewFeedback): void;
+  onConverged(round: number, feedback: PhaseFeedback): void;
   onMaxRoundsReached(round: number): void;
   onHashMismatch(
     planPath: string,
@@ -184,17 +184,22 @@ export async function runLoop(options: LoopOptions): Promise<void> {
 
     // Check convergence
     if (reviewResult.converged) {
-      finalizeApproved(
-        session,
-        cwd,
-        config,
-        issueTrajectory,
-        totalAccepted,
-        totalRejected,
-        totalDeferred,
-        startTime,
-        initialLineCount,
-      );
+      if (reviewResult.feedback.verdict === "blocked") {
+        session.status = "blocked";
+        writeSessionState(cwd, session);
+      } else {
+        finalizeApproved(
+          session,
+          cwd,
+          config,
+          issueTrajectory,
+          totalAccepted,
+          totalRejected,
+          totalDeferred,
+          startTime,
+          initialLineCount,
+        );
+      }
       callbacks.onConverged(round, reviewResult.feedback);
       return;
     }
@@ -260,6 +265,7 @@ export async function runLoop(options: LoopOptions): Promise<void> {
       linesAdded,
       linesRemoved,
       elapsed,
+      reviewResult.phaseExtras,
     );
     planContent = updatePlanStatusLine(planContent, statusLine);
     writeFileSync(planPath, planContent);
@@ -322,21 +328,26 @@ export async function runReviewLoop(
 
     // Check convergence
     if (reviewResult.converged) {
-      finalizeApproved(
-        session,
-        cwd,
-        config,
-        issueTrajectory,
-        totalAccepted,
-        totalRejected,
-        totalDeferred,
-        startTime,
-        initialLineCount,
-      );
+      if (reviewResult.feedback.verdict === "blocked") {
+        session.status = "blocked";
+        writeSessionState(cwd, session);
+      } else {
+        finalizeApproved(
+          session,
+          cwd,
+          config,
+          issueTrajectory,
+          totalAccepted,
+          totalRejected,
+          totalDeferred,
+          startTime,
+          initialLineCount,
+        );
+      }
       callbacks.onConverged(round, reviewResult.feedback);
 
       return {
-        status: "approved",
+        status: reviewResult.feedback.verdict === "blocked" ? "aborted" : "approved",
         rounds: round,
         issueTrajectory,
         accepted: totalAccepted,
@@ -429,6 +440,7 @@ export async function runReviewLoop(
       linesAdded,
       linesRemoved,
       elapsed,
+      reviewResult.phaseExtras,
     );
     const updatedPlan = updatePlanStatusLine(currentPlan, statusLine);
     writeFileSync(planPath, updatedPlan);
