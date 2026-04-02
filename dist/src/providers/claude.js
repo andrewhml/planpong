@@ -17,7 +17,9 @@ export class ClaudeProvider {
     name = "claude";
     async invoke(prompt, options) {
         // claude -p reads prompt from stdin when no positional arg is given
-        const args = ["-p", "--output-format", "text"];
+        // --bare skips hooks, MCP servers, auto-memory, CLAUDE.md discovery,
+        // and plugin sync — recommended for subprocess/SDK calls.
+        const args = ["-p", "--bare", "--output-format", "text"];
         if (options.model) {
             args.push("--model", options.model);
         }
