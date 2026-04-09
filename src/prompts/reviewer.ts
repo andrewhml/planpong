@@ -195,6 +195,7 @@ export function buildReviewPrompt(
   planContent: string,
   priorDecisions: string | null,
   phase: ReviewPhase = "detail",
+  structuredOutput: boolean = false,
 ): string {
   const instructions =
     phase === "direction"
@@ -209,6 +210,22 @@ export function buildReviewPrompt(
       : phase === "risk"
         ? buildRiskJsonSchema()
         : buildDetailJsonSchema();
+
+  if (structuredOutput) {
+    // Structured-output mode: the model is constrained to JSON output by the
+    // CLI's --json-schema/--output-schema flag, so wrapping instructions are
+    // unnecessary and potentially confusing.
+    return `${instructions}
+## Plan to Review
+
+${planContent}
+
+## Your Task
+
+Respond with a JSON object that matches this schema:
+
+${jsonSchema}`;
+  }
 
   return `${instructions}
 ## Plan to Review
