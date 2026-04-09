@@ -17,7 +17,7 @@ Output ONLY the markdown plan. No preamble, no commentary.
 
 ${requirements}`;
 }
-export function buildRevisionPrompt(currentPlan, feedback, keyDecisions, priorContext, phase = "detail") {
+export function buildRevisionPrompt(currentPlan, feedback, keyDecisions, priorContext, phase = "detail", structuredOutput = false) {
     const contextBlock = priorContext
         ? `\n## Prior Research & Constraints\n\n${priorContext}\n`
         : "";
@@ -104,23 +104,7 @@ For each response, cite specific evidence: reference the plan section, the resea
 - Do not reorganize or rephrase parts of the plan unrelated to risk feedback.`
             : `- Only modify sections of the plan that are directly addressed by accepted feedback. Do not reorganize, rephrase, or "improve" parts of the plan that aren't related to any issue.
 - Preserve the plan's existing structure, headings, and formatting. Your job is surgical revision, not rewriting.`;
-    return `${roleInstructions}
-${contextBlock}${decisionsBlock}
-## Current Plan
-
-${currentPlan}
-
-## Reviewer Feedback
-
-**Summary:** ${feedback.summary}
-
-${issuesList}
-
-## Your Task
-
-Respond with a JSON object wrapped in <planpong-revision> tags. The JSON must match this schema:
-
-\`\`\`
+    const schemaBlock = `\`\`\`
 {
   "responses": [
     {
@@ -136,7 +120,38 @@ Respond with a JSON object wrapped in <planpong-revision> tags. The JSON must ma
   ],
   "updated_plan": "The full updated plan in markdown (incorporate accepted changes)"
 }
-\`\`\`
+\`\`\``;
+    const commonBody = `${roleInstructions}
+${contextBlock}${decisionsBlock}
+## Current Plan
+
+${currentPlan}
+
+## Reviewer Feedback
+
+**Summary:** ${feedback.summary}
+
+${issuesList}
+
+## Your Task`;
+    if (structuredOutput) {
+        return `${commonBody}
+
+Respond with a JSON object that matches this schema:
+
+${schemaBlock}
+
+IMPORTANT:
+- Every issue MUST have a response. Do not skip any.
+- The \`updated_plan\` must be the complete plan markdown, not a diff.
+${surgicalConstraint}
+- Do NOT modify the \`**planpong:**\` status line — it is managed automatically.`;
+    }
+    return `${commonBody}
+
+Respond with a JSON object wrapped in <planpong-revision> tags. The JSON must match this schema:
+
+${schemaBlock}
 
 IMPORTANT:
 - Every issue MUST have a response. Do not skip any.

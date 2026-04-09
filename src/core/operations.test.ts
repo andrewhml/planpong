@@ -1,4 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   severityFromFeedback,
   formatRoundSeverity,
@@ -7,9 +10,17 @@ import {
   formatDuration,
   formatProviderLabel,
   updatePlanStatusLine,
+  initReviewSession,
+  runReviewRound,
   type RoundSeverity,
 } from "./operations.js";
 import type { ReviewFeedback } from "../schemas/feedback.js";
+import type {
+  Provider,
+  InvokeOptions,
+  ProviderResponse,
+} from "../providers/types.js";
+import type { PlanpongConfig } from "../schemas/config.js";
 
 // --- severityFromFeedback ---
 
@@ -165,5 +176,292 @@ describe("updatePlanStatusLine", () => {
     expect(lines[0]).toBe("# My Plan");
     expect(lines[1]).toBe("");
     expect(lines[2]).toBe("**planpong:** R0/10 | init");
+  });
+});
+
+// --- Invocation state machine tests ---
+
+interface ScriptedResponse {
+  response: ProviderResponse;
+  expectStructured?: boolean;
+}
+
+class MockProvider implements Provider {
+  name = "mock";
+  invokeCalls: Array<{ prompt: string; options: InvokeOptions }> = [];
+  capabilityCache: boolean = true;
+  markedNonCapable = false;
+
+  constructor(
+    private responses: ScriptedResponse[],
+    private supportsStructured: boolean = true,
+  ) {}
+
+  async invoke(prompt: string, options: InvokeOptions): Promise<ProviderResponse> {
+    this.invokeCalls.push({ prompt, options });
+    const next = this.responses.shift();
+    if (!next) {
+      throw new Error(`MockProvider ran out of scripted responses (call #${this.invokeCalls.length})`);
+    }
+    return next.response;
+  }
+
+  async isAvailable(): Promise<boolean> {
+    return true;
+  }
+
+  getModels(): string[] {
+    return [];
+  }
+
+  getEffortLevels(): string[] {
+    return ["default"];
+  }
+
+  async checkStructuredOutputSupport(): Promise<boolean> {
+    return this.supportsStructured && this.capabilityCache;
+  }
+
+  markNonCapable(): void {
+    this.markedNonCapable = true;
+    this.capabilityCache = false;
+  }
+}
+
+function makeConfig(): PlanpongConfig {
+  return {
+    planner: { provider: "mock" },
+    reviewer: { provider: "mock" },
+    plans_dir: "docs/plans",
+    max_rounds: 10,
+    human_in_loop: false,
+  };
+}
+
+function makeFeedbackJson(verdict: string, opts: Partial<{ confidence: string; approach_assessment: string }> = {}) {
+  return JSON.stringify({
+    verdict,
+    summary: "test summary",
+    issues: [],
+    confidence: opts.confidence ?? "high",
+    approach_assessment: opts.approach_assessment ?? "looks reasonable",
+    alternatives: [],
+    assumptions: [],
+  });
+}
+
+describe("Invocation state machine via runReviewRound", () => {
+  let tmpDir: string;
+  let planPath: string;
+  let stderrSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "planpong-test-"));
+    mkdirSync(join(tmpDir, "docs", "plans"), { recursive: true });
+    planPath = join(tmpDir, "docs", "plans", "test-plan.md");
+    writeFileSync(planPath, "# Test Plan\n\n**Status:** Draft\n\n## Steps\n- [ ] Do thing\n");
+    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    stderrSpy.mockRestore();
+    if (existsSync(tmpDir)) {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  function startSession(provider: MockProvider) {
+    const config = makeConfig();
+    const init = initReviewSession(planPath, tmpDir, config);
+    init.session.currentRound = 1;
+    return { session: init.session, config, provider };
+  }
+
+  it("structured success: invokes once, parses without legacy fallback", async () => {
+    const provider = new MockProvider([
+      {
+        response: {
+          ok: true,
+          output: makeFeedbackJson("needs_revision"),
+          duration: 100,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    const result = await runReviewRound(session, tmpDir, config, provider);
+
+    expect(provider.invokeCalls).toHaveLength(1);
+    expect(provider.invokeCalls[0].options.jsonSchema).toBeDefined();
+    // Structured prompt has no wrapping instructions
+    expect(provider.invokeCalls[0].prompt).not.toContain("<planpong-feedback>");
+    expect(result.feedback.verdict).toBe("needs_revision");
+    expect(provider.markedNonCapable).toBe(false);
+  });
+
+  it("provider capability error triggers downgrade with prompt regeneration (F4, F9)", async () => {
+    const provider = new MockProvider([
+      {
+        response: {
+          ok: false,
+          error: {
+            kind: "capability",
+            message: "unknown flag --json-schema",
+            exitCode: 2,
+          },
+          duration: 50,
+        },
+      },
+      {
+        response: {
+          ok: true,
+          output: `<planpong-feedback>${makeFeedbackJson("needs_revision")}</planpong-feedback>`,
+          duration: 100,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    const result = await runReviewRound(session, tmpDir, config, provider);
+
+    expect(provider.invokeCalls).toHaveLength(2);
+    expect(provider.markedNonCapable).toBe(true);
+    // First call: structured (with schema, no wrapping)
+    expect(provider.invokeCalls[0].options.jsonSchema).toBeDefined();
+    expect(provider.invokeCalls[0].prompt).not.toContain("<planpong-feedback>");
+    // Second call: legacy (no schema, WITH wrapping) — F4 invariant
+    expect(provider.invokeCalls[1].options.jsonSchema).toBeUndefined();
+    expect(provider.invokeCalls[1].prompt).toContain("<planpong-feedback>");
+    expect(result.feedback.verdict).toBe("needs_revision");
+  });
+
+  it("provider fatal error is terminal — no downgrade attempted (F9)", async () => {
+    const provider = new MockProvider([
+      {
+        response: {
+          ok: false,
+          error: {
+            kind: "fatal",
+            message: "auth refresh failed",
+            exitCode: 1,
+          },
+          duration: 50,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    await expect(runReviewRound(session, tmpDir, config, provider)).rejects.toThrow(
+      /fatal/,
+    );
+    expect(provider.invokeCalls).toHaveLength(1);
+    expect(provider.markedNonCapable).toBe(false);
+  });
+
+  it("JSON parse failure on structured output triggers downgrade (F3)", async () => {
+    const provider = new MockProvider([
+      {
+        response: {
+          ok: true,
+          output: "this is not valid json",
+          duration: 100,
+        },
+      },
+      {
+        response: {
+          ok: true,
+          output: `<planpong-feedback>${makeFeedbackJson("needs_revision")}</planpong-feedback>`,
+          duration: 100,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    const result = await runReviewRound(session, tmpDir, config, provider);
+
+    expect(provider.invokeCalls).toHaveLength(2);
+    expect(provider.markedNonCapable).toBe(true);
+    expect(result.feedback.verdict).toBe("needs_revision");
+  });
+
+  it("Zod validation failure on structured output is terminal — no retry (F2)", async () => {
+    // Direction phase requires confidence/approach_assessment/etc. Send a
+    // structurally invalid payload to trigger Zod failure (not JSON.parse).
+    const invalidJson = JSON.stringify({
+      verdict: "needs_revision",
+      summary: "test",
+      // missing: issues, confidence, approach_assessment, alternatives, assumptions
+    });
+    const provider = new MockProvider([
+      {
+        response: { ok: true, output: invalidJson, duration: 100 },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    await expect(runReviewRound(session, tmpDir, config, provider)).rejects.toThrow(
+      /Zod validation/,
+    );
+    expect(provider.invokeCalls).toHaveLength(1);
+  });
+
+  it("max 2 invocations enforced (F3)", async () => {
+    // Both attempts fail
+    const provider = new MockProvider([
+      {
+        response: { ok: true, output: "garbage1", duration: 100 },
+      },
+      {
+        response: { ok: true, output: "garbage2", duration: 100 },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    await expect(runReviewRound(session, tmpDir, config, provider)).rejects.toThrow();
+    // Exactly 2 invocations: structured + legacy fallback
+    expect(provider.invokeCalls).toHaveLength(2);
+  });
+
+  it("provider without structured output support starts in legacy mode immediately", async () => {
+    const provider = new MockProvider(
+      [
+        {
+          response: {
+            ok: true,
+            output: `<planpong-feedback>${makeFeedbackJson("needs_revision")}</planpong-feedback>`,
+            duration: 100,
+          },
+        },
+      ],
+      false, // does not support structured
+    );
+    const { session, config } = startSession(provider);
+    const result = await runReviewRound(session, tmpDir, config, provider);
+
+    expect(provider.invokeCalls).toHaveLength(1);
+    // Legacy mode: no schema, wrapping instructions present
+    expect(provider.invokeCalls[0].options.jsonSchema).toBeUndefined();
+    expect(provider.invokeCalls[0].prompt).toContain("<planpong-feedback>");
+    expect(result.feedback.verdict).toBe("needs_revision");
+  });
+
+  it("provider invoke is never called more than once per state machine attempt (F7)", async () => {
+    // Each scripted response represents exactly one provider invocation.
+    // The structured + legacy path uses 2 provider calls, period — no
+    // hidden internal retries.
+    const provider = new MockProvider([
+      {
+        response: {
+          ok: false,
+          error: { kind: "capability", message: "unknown flag", exitCode: 2 },
+          duration: 50,
+        },
+      },
+      {
+        response: {
+          ok: true,
+          output: `<planpong-feedback>${makeFeedbackJson("needs_revision")}</planpong-feedback>`,
+          duration: 100,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    await runReviewRound(session, tmpDir, config, provider);
+    // 2 attempts = 2 invocations, no more
+    expect(provider.invokeCalls).toHaveLength(2);
   });
 });

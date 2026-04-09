@@ -22,6 +22,38 @@ describe("getReviewPhase", () => {
   });
 });
 
+// --- buildReviewPrompt structured output ---
+
+describe("buildReviewPrompt structuredOutput flag", () => {
+  const plan = "# Plan\n\n## Steps\n- Step 1";
+
+  it("includes wrapping instructions when structuredOutput is false (legacy)", () => {
+    const prompt = buildReviewPrompt(plan, null, "detail", false);
+    expect(prompt).toContain("<planpong-feedback>");
+    expect(prompt).toContain("</planpong-feedback>");
+    expect(prompt).toContain("Wrap your JSON response");
+  });
+
+  it("omits wrapping instructions when structuredOutput is true", () => {
+    const prompt = buildReviewPrompt(plan, null, "detail", true);
+    expect(prompt).not.toContain("<planpong-feedback>");
+    expect(prompt).not.toContain("</planpong-feedback>");
+    expect(prompt).not.toContain("Wrap your JSON response");
+  });
+
+  it("structured mode still includes the schema and instructions", () => {
+    const prompt = buildReviewPrompt(plan, null, "direction", true);
+    expect(prompt).toContain("Respond with a JSON object that matches this schema");
+    expect(prompt).toContain("verdict");
+    expect(prompt).toContain("approach_assessment");
+  });
+
+  it("defaults to legacy mode (structuredOutput=false) when omitted", () => {
+    const prompt = buildReviewPrompt(plan, null, "detail");
+    expect(prompt).toContain("<planpong-feedback>");
+  });
+});
+
 // --- buildReviewPrompt ---
 
 describe("buildReviewPrompt", () => {

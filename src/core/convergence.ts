@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import {
   ReviewFeedbackSchema,
   DirectionFeedbackSchema,
@@ -12,6 +13,32 @@ import {
   type PlannerRevision,
 } from "../schemas/revision.js";
 import type { ReviewPhase } from "../prompts/reviewer.js";
+
+/**
+ * Thrown when structured output produces text that is not valid JSON.
+ * The state machine treats this as a downgrade-eligible failure.
+ */
+export class StructuredOutputParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StructuredOutputParseError";
+  }
+}
+
+/**
+ * Thrown when structured output produces valid JSON that fails Zod
+ * validation (e.g., a refinement violation). The state machine treats
+ * this as terminal — the structured output mechanism worked, the model
+ * just produced semantically invalid content. Retrying won't help.
+ */
+export class ZodValidationError extends Error {
+  public readonly zodError: ZodError;
+  constructor(message: string, zodError: ZodError) {
+    super(message);
+    this.name = "ZodValidationError";
+    this.zodError = zodError;
+  }
+}
 
 /**
  * Extract JSON from between sentinel tags. Falls back to finding JSON in
@@ -122,9 +149,96 @@ function extractArrayFromRaw(content: string, field: string): unknown[] | null {
 }
 
 /**
- * Phase-aware feedback parser. Tries the phase-specific parser first,
- * falls back to base parser, then applies verdict coercion and blocked
- * rationale validation.
+ * Parse structured-output feedback. The model output is guaranteed to be
+ * valid JSON conforming to the JSON Schema we passed to the CLI, so we
+ * skip tag/fence extraction and parse directly. Throws:
+ * - `StructuredOutputParseError` if JSON.parse fails (downgrade-eligible)
+ * - `ZodValidationError` if Zod validation fails (terminal)
+ */
+export function parseStructuredFeedbackForPhase(
+  content: string,
+  phase: ReviewPhase,
+): PhaseFeedback {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    throw new StructuredOutputParseError(
+      `Structured output is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const schema =
+    phase === "direction"
+      ? DirectionFeedbackSchema
+      : phase === "risk"
+        ? RiskFeedbackSchema
+        : ReviewFeedbackSchema;
+
+  const result = schema.safeParse(parsed);
+  if (!result.success) {
+    throw new ZodValidationError(
+      `Structured output failed Zod validation for ${phase} phase: ${result.error.message}`,
+      result.error,
+    );
+  }
+
+  // Apply blocked rationale validation (same rules as legacy path)
+  const feedback = result.data as PhaseFeedback;
+  if (phase === "direction" && feedback.verdict === "blocked") {
+    const direction = feedback as DirectionFeedback;
+    if (!direction.approach_assessment?.trim()) {
+      console.warn(
+        "[planpong] Blocked verdict without approach_assessment rationale — coercing to needs_revision",
+      );
+      return { ...direction, verdict: "needs_revision" as const };
+    }
+  }
+  if (phase === "risk" && feedback.verdict === "blocked") {
+    const risk = feedback as RiskFeedback;
+    if (!risk.risks || risk.risks.length === 0) {
+      console.warn(
+        "[planpong] Blocked verdict without risks rationale — coercing to needs_revision",
+      );
+      return { ...risk, verdict: "needs_revision" as const };
+    }
+  }
+  return feedback;
+}
+
+/**
+ * Parse structured-output revision (planner response). Same contract as
+ * `parseStructuredFeedbackForPhase`: throws `StructuredOutputParseError`
+ * for JSON failures and `ZodValidationError` for Zod failures.
+ */
+export function parseStructuredRevision(content: string): PlannerRevision {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    throw new StructuredOutputParseError(
+      `Structured output is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const result = PlannerRevisionSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ZodValidationError(
+      `Structured output failed Zod validation for revision: ${result.error.message}`,
+      result.error,
+    );
+  }
+  return result.data;
+}
+
+/**
+ * Phase-aware feedback parser (LEGACY/DEGRADATION MODE).
+ *
+ * TODO: deprecate when structured output is stable across all providers.
+ *
+ * Tries the phase-specific parser first, falls back to base parser, then
+ * applies verdict coercion and blocked rationale validation. Used when a
+ * provider does not support structured output, or as a fallback when
+ * structured output fails.
  */
 export function parseFeedbackForPhase(
   content: string,

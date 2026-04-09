@@ -180,7 +180,7 @@ If the plan is approved with no issues, use:
 { "verdict": "approved", "summary": "...", "issues": [] }
 \`\`\``;
 }
-export function buildReviewPrompt(planContent, priorDecisions, phase = "detail") {
+export function buildReviewPrompt(planContent, priorDecisions, phase = "detail", structuredOutput = false) {
     const instructions = phase === "direction"
         ? buildDirectionReviewInstructions()
         : phase === "risk"
@@ -191,6 +191,21 @@ export function buildReviewPrompt(planContent, priorDecisions, phase = "detail")
         : phase === "risk"
             ? buildRiskJsonSchema()
             : buildDetailJsonSchema();
+    if (structuredOutput) {
+        // Structured-output mode: the model is constrained to JSON output by the
+        // CLI's --json-schema/--output-schema flag, so wrapping instructions are
+        // unnecessary and potentially confusing.
+        return `${instructions}
+## Plan to Review
+
+${planContent}
+
+## Your Task
+
+Respond with a JSON object that matches this schema:
+
+${jsonSchema}`;
+    }
     return `${instructions}
 ## Plan to Review
 

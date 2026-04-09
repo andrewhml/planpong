@@ -116,9 +116,9 @@ export async function runLoop(options: LoopOptions): Promise<void> {
     effort: config.planner.effort,
   });
 
-  if (planResponse.exitCode !== 0) {
+  if (!planResponse.ok) {
     throw new Error(
-      `Planner failed (exit ${planResponse.exitCode}):\n${planResponse.content.slice(0, 500)}`,
+      `Planner failed (exit ${planResponse.error.exitCode}):\n${planResponse.error.message}`,
     );
   }
 
@@ -127,7 +127,7 @@ export async function runLoop(options: LoopOptions): Promise<void> {
   const planPath = join(plansDir, filename);
   const relativePlanPath = relative(cwd, planPath);
 
-  let planContent = planResponse.content;
+  let planContent = planResponse.output;
   const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${formatProviderLabel(config.planner)} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
   planContent = updatePlanStatusLine(planContent, initialStatusLine);
   writeFileSync(planPath, planContent);
