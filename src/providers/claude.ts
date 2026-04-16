@@ -23,6 +23,38 @@ function cleanEnv(): Record<string, string> {
 }
 
 /**
+ * Parse claude's `--output-format json` envelope and extract the
+ * `structured_output` field as a JSON string ready for downstream parsing.
+ * Returns null if the envelope is malformed or the field is missing.
+ *
+ * Envelope shape (subset):
+ * {
+ *   "type": "result",
+ *   "is_error": false,
+ *   "result": "",
+ *   "structured_output": { ...model's constrained JSON... },
+ *   ...
+ * }
+ */
+function extractStructuredOutput(stdout: string): string | null {
+  try {
+    const envelope = JSON.parse(stdout);
+    if (
+      envelope &&
+      typeof envelope === "object" &&
+      "structured_output" in envelope &&
+      envelope.structured_output !== null &&
+      typeof envelope.structured_output === "object"
+    ) {
+      return JSON.stringify(envelope.structured_output);
+    }
+  } catch {
+    // Not JSON — may indicate a pre-envelope error or auth failure
+  }
+  return null;
+}
+
+/**
  * Classify a CLI invocation failure as `capability` (downgrade-eligible) or
  * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
  * requested structured output flag; fatal errors are everything else.
@@ -58,12 +90,20 @@ export class ClaudeProvider implements Provider {
     prompt: string,
     options: InvokeOptions,
   ): Promise<ProviderResponse> {
-    // claude -p reads prompt from stdin when no positional arg is given
-    // --bare skips hooks, MCP servers, auto-memory, CLAUDE.md discovery,
-    // and plugin sync — recommended for subprocess/SDK calls.
-    const args = ["-p", "--bare"];
+    // claude -p reads prompt from stdin when no positional arg is given.
+    // --bare skips hooks/MCP/auto-memory/CLAUDE.md/plugin-sync for faster
+    // subprocess startup, but it bypasses OAuth/keychain — only safe to use
+    // when ANTHROPIC_API_KEY is set.
+    const args = ["-p"];
+    if (process.env.ANTHROPIC_API_KEY) {
+      args.push("--bare");
+    }
 
     if (options.jsonSchema) {
+      // With a schema, use --output-format json so the response envelope
+      // includes a `structured_output` field containing the model's
+      // constrained JSON as a native object. --output-format text drops
+      // the structured_output field entirely.
       args.push(
         "--output-format",
         "json",
@@ -96,6 +136,23 @@ export class ClaudeProvider implements Provider {
       // claude -p can exit non-zero with valid stdout. Treat presence of
       // stdout as success even on non-zero exit.
       if (result.stdout && result.stdout.trim().length > 0) {
+        if (options.jsonSchema) {
+          // Parse claude's envelope and extract structured_output.
+          const extracted = extractStructuredOutput(result.stdout);
+          if (extracted === null) {
+            return {
+              ok: false,
+              error: {
+                kind: "capability",
+                message: `claude returned envelope without structured_output field: ${result.stdout.slice(0, 300)}`,
+                exitCode,
+                stderr: result.stderr,
+              },
+              duration,
+            };
+          }
+          return { ok: true, output: extracted, duration };
+        }
         return { ok: true, output: result.stdout, duration };
       }
 

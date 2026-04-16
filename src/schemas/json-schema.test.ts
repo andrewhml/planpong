@@ -44,8 +44,71 @@ describe("JSON Schema generation", () => {
   });
 });
 
+// --- OpenAI strict dialect compliance ---
+
+/**
+ * OpenAI structured output requires: every property in `required`,
+ * `additionalProperties: false`, optional fields nullable. Verify that
+ * the generator produces these everywhere.
+ */
+function assertStrictRecursive(node: unknown, path: string = "root"): void {
+  if (Array.isArray(node)) {
+    node.forEach((child, i) => assertStrictRecursive(child, `${path}[${i}]`));
+    return;
+  }
+  if (!node || typeof node !== "object") return;
+  const obj = node as Record<string, unknown>;
+  if (obj.type === "object" && obj.properties && typeof obj.properties === "object") {
+    expect(obj.additionalProperties, `${path} must have additionalProperties: false`).toBe(false);
+    const keys = Object.keys(obj.properties as Record<string, unknown>);
+    const required = Array.isArray(obj.required) ? (obj.required as string[]) : [];
+    for (const key of keys) {
+      expect(required, `${path}.${key} must appear in required`).toContain(key);
+    }
+  }
+  for (const value of Object.values(obj)) {
+    assertStrictRecursive(value, path);
+  }
+}
+
+describe("OpenAI strict dialect compliance", () => {
+  it("DirectionFeedback schema conforms to OpenAI strict mode", () => {
+    assertStrictRecursive(DirectionFeedbackJsonSchema);
+  });
+
+  it("RiskFeedback schema conforms to OpenAI strict mode", () => {
+    assertStrictRecursive(RiskFeedbackJsonSchema);
+  });
+
+  it("ReviewFeedback schema conforms to OpenAI strict mode", () => {
+    assertStrictRecursive(ReviewFeedbackJsonSchema);
+  });
+
+  it("PlannerRevision schema conforms to OpenAI strict mode", () => {
+    assertStrictRecursive(PlannerRevisionJsonSchema);
+  });
+
+  it("strips internal observability fields from generated schemas", () => {
+    // fallback_used and missing_phase_fields are parser-set, not model-set
+    const json = JSON.stringify(DirectionFeedbackJsonSchema);
+    expect(json).not.toContain("fallback_used");
+    expect(json).not.toContain("missing_phase_fields");
+  });
+
+  it("optional fields are expressed as nullable", () => {
+    // severity_dispute is an optional field in IssueResponseSchema
+    const schemaStr = JSON.stringify(PlannerRevisionJsonSchema);
+    // severity_dispute must appear in required, and its type must include null
+    // (either as [X, "null"] or wrapped in anyOf)
+    expect(schemaStr).toContain("severity_dispute");
+    expect(schemaStr).toContain("null");
+  });
+});
+
+// --- Contract tests: JSON Schema accepts, Zod accepts (after null-stripping) ---
+
 describe("Contract tests — JSON Schema and Zod agree on structural subset", () => {
-  it("DirectionFeedback: valid payload passes both", () => {
+  it("DirectionFeedback: OpenAI-strict payload passes JSON Schema", () => {
     const payload = {
       verdict: "needs_revision",
       summary: "test",
@@ -60,7 +123,7 @@ describe("Contract tests — JSON Schema and Zod agree on structural subset", ()
     expect(() => DirectionFeedbackSchema.parse(payload)).not.toThrow();
   });
 
-  it("DirectionFeedback: missing required field fails both", () => {
+  it("DirectionFeedback: missing required field fails JSON Schema and Zod", () => {
     const payload = {
       verdict: "needs_revision",
       summary: "test",
@@ -72,7 +135,7 @@ describe("Contract tests — JSON Schema and Zod agree on structural subset", ()
     expect(() => DirectionFeedbackSchema.parse(payload)).toThrow();
   });
 
-  it("RiskFeedback: valid payload passes both", () => {
+  it("RiskFeedback: valid payload passes JSON Schema and Zod", () => {
     const payload = {
       verdict: "needs_revision",
       summary: "test",
@@ -85,7 +148,7 @@ describe("Contract tests — JSON Schema and Zod agree on structural subset", ()
     expect(() => RiskFeedbackSchema.parse(payload)).not.toThrow();
   });
 
-  it("ReviewFeedback: valid payload passes both", () => {
+  it("ReviewFeedback: valid payload passes JSON Schema and Zod", () => {
     const payload = {
       verdict: "approved",
       summary: "test",
@@ -120,12 +183,13 @@ describe("Contract tests — JSON Schema and Zod agree on structural subset", ()
     expect(() => ReviewFeedbackSchema.parse(payload)).toThrow();
   });
 
-  it("PlannerRevision: valid payload passes both", () => {
+  it("PlannerRevision: OpenAI-strict payload (with nulls for optional fields) passes JSON Schema", () => {
     const payload = {
       responses: [
         {
           issue_id: "F1",
           action: "accepted",
+          severity_dispute: null, // OpenAI-strict form: null instead of missing
           rationale: "good catch",
         },
       ],
@@ -133,7 +197,6 @@ describe("Contract tests — JSON Schema and Zod agree on structural subset", ()
     };
     const validate = ajv.compile(PlannerRevisionJsonSchema);
     expect(validate(payload)).toBe(true);
-    expect(() => PlannerRevisionSchema.parse(payload)).not.toThrow();
   });
 
   it("PlannerRevision: updated_plan with code fences and special characters roundtrips", () => {

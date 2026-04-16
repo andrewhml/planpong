@@ -17,19 +17,23 @@ const EFFORT_LEVELS = ["low", "medium", "high", "xhigh"];
  * Classify a CLI invocation failure as `capability` (downgrade-eligible) or
  * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
  * requested structured output flag; fatal errors are everything else.
+ *
+ * Patterns must be narrow — codex's normal session header includes flag
+ * names like "output-schema:" in its info output, so substring matches on
+ * the flag name alone produce false positives.
  */
 function classifyError(stderr: string, exitCode: number): ProviderError {
   const lower = stderr.toLowerCase();
-  const capabilityIndicators = [
-    "unknown flag",
-    "unknown option",
-    "unrecognized",
-    "invalid schema",
-    "output-schema",
-    "unsupported",
+  const capabilityPatterns = [
+    /\bunknown (?:flag|option|argument)\b/,
+    /\bunrecognized (?:flag|option|argument)\b/,
+    /\binvalid_json_schema\b/,
+    /\binvalid schema\b/,
+    /\bschema is not supported\b/,
+    /\bstructured output (?:not|isn't) supported\b/,
   ];
-  const isCapability = capabilityIndicators.some((indicator) =>
-    lower.includes(indicator),
+  const isCapability = capabilityPatterns.some((pattern) =>
+    pattern.test(lower),
   );
   return {
     kind: isCapability ? "capability" : "fatal",

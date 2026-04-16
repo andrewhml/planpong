@@ -192,9 +192,10 @@ export function buildReviewPrompt(planContent, priorDecisions, phase = "detail",
             ? buildRiskJsonSchema()
             : buildDetailJsonSchema();
     if (structuredOutput) {
-        // Structured-output mode: the model is constrained to JSON output by the
-        // CLI's --json-schema/--output-schema flag, so wrapping instructions are
-        // unnecessary and potentially confusing.
+        // Structured-output mode. Some providers (OpenAI/Codex) constrain output
+        // at the token level; others (Claude) only validate post-hoc. Emphatic
+        // JSON-only instructions help the advisory case comply; the constrained
+        // case ignores them harmlessly.
         return `${instructions}
 ## Plan to Review
 
@@ -202,7 +203,9 @@ ${planContent}
 
 ## Your Task
 
-Respond with a JSON object that matches this schema:
+Output ONLY a single JSON object conforming to the schema below. The first character of your response must be \`{\` and the last must be \`}\`. No prose. No markdown. No code fences. No preamble or explanation. No trailing text.
+
+Schema:
 
 ${jsonSchema}`;
     }

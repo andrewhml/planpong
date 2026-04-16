@@ -35,9 +35,18 @@ describe("buildRevisionPrompt structuredOutput flag", () => {
 
   it("structured mode still includes the schema, plan, and feedback", () => {
     const prompt = buildRevisionPrompt(plan, feedback, null, null, "detail", true);
-    expect(prompt).toContain("Respond with a JSON object that matches this schema");
+    expect(prompt).toContain("Output ONLY a single JSON object");
     expect(prompt).toContain("updated_plan");
     expect(prompt).toContain("Step 2 is missing");
+  });
+
+  it("structured mode uses emphatic JSON-only language for advisory providers", () => {
+    const prompt = buildRevisionPrompt(plan, feedback, null, null, "detail", true);
+    expect(prompt).toContain("Output ONLY a single JSON object");
+    expect(prompt).toContain("No prose");
+    expect(prompt).toContain("No markdown");
+    expect(prompt).toContain("No code fences");
+    expect(prompt).toMatch(/first character.*must be `\{`/);
   });
 
   it("defaults to legacy mode (structuredOutput=false) when omitted", () => {

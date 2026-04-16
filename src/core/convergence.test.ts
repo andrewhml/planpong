@@ -496,6 +496,51 @@ describe("parseFeedbackForPhase", () => {
 
 // --- Structured output parsing ---
 
+describe("OpenAI-strict null stripping", () => {
+  it("strips null optional fields before Zod validation (PlannerRevision)", () => {
+    // OpenAI-strict form includes optional fields as null. Our Zod schema
+    // uses .optional() which expects missing keys. The parser must strip
+    // nulls so validation succeeds.
+    const rev = {
+      responses: [
+        {
+          issue_id: "F1",
+          action: "accepted",
+          severity_dispute: null,
+          rationale: "good catch",
+        },
+      ],
+      updated_plan: "# Plan",
+    };
+    const result = parseStructuredRevision(JSON.stringify(rev));
+    expect(result.responses[0].severity_dispute).toBeUndefined();
+  });
+
+  it("preserves non-null optional fields", () => {
+    const rev = {
+      responses: [
+        {
+          issue_id: "F1",
+          action: "accepted",
+          severity_dispute: {
+            original: "P1",
+            revised: "P2",
+            justification: "overstated",
+          },
+          rationale: "good catch",
+        },
+      ],
+      updated_plan: "# Plan",
+    };
+    const result = parseStructuredRevision(JSON.stringify(rev));
+    expect(result.responses[0].severity_dispute).toEqual({
+      original: "P1",
+      revised: "P2",
+      justification: "overstated",
+    });
+  });
+});
+
 describe("parseStructuredFeedbackForPhase", () => {
   it("parses raw JSON without tag extraction (detail phase)", () => {
     const fb = {

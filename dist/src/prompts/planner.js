@@ -135,15 +135,20 @@ ${issuesList}
 
 ## Your Task`;
     if (structuredOutput) {
+        // Structured-output mode. Some providers constrain output at the token
+        // level; others only validate post-hoc. Emphatic JSON-only instructions
+        // help advisory providers comply; constrained providers ignore them.
         return `${commonBody}
 
-Respond with a JSON object that matches this schema:
+Output ONLY a single JSON object conforming to the schema below. The first character of your response must be \`{\` and the last must be \`}\`. No prose. No markdown. No code fences. No preamble or explanation. No trailing text.
+
+Schema:
 
 ${schemaBlock}
 
-IMPORTANT:
-- Every issue MUST have a response. Do not skip any.
-- The \`updated_plan\` must be the complete plan markdown, not a diff.
+Constraints embedded in your JSON response:
+- Every issue MUST have an entry in \`responses\`. Do not skip any.
+- \`updated_plan\` must be the complete plan markdown, not a diff.
 ${surgicalConstraint}
 - Do NOT modify the \`**planpong:**\` status line — it is managed automatically.`;
     }

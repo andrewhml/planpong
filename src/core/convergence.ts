@@ -149,6 +149,28 @@ function extractArrayFromRaw(content: string, field: string): unknown[] | null {
 }
 
 /**
+ * Recursively strip `null` property values from an object. OpenAI-strict
+ * structured output requires every optional property to be present as
+ * `null`, but our Zod schemas use `.optional()` which expects missing keys
+ * (not nulls). This adapter removes nulls so Zod validation succeeds.
+ *
+ * Only strips top-level and nested object properties that are `null`;
+ * array elements and primitive values are preserved.
+ */
+function stripNullProperties(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripNullProperties);
+  if (value && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === null) continue;
+      result[key] = stripNullProperties(v);
+    }
+    return result;
+  }
+  return value;
+}
+
+/**
  * Parse structured-output feedback. The model output is guaranteed to be
  * valid JSON conforming to the JSON Schema we passed to the CLI, so we
  * skip tag/fence extraction and parse directly. Throws:
@@ -167,6 +189,9 @@ export function parseStructuredFeedbackForPhase(
       `Structured output is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+
+  // OpenAI-strict output includes optional fields as null; Zod expects them missing.
+  parsed = stripNullProperties(parsed);
 
   const schema =
     phase === "direction"
@@ -220,6 +245,7 @@ export function parseStructuredRevision(content: string): PlannerRevision {
       `Structured output is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+  parsed = stripNullProperties(parsed);
   const result = PlannerRevisionSchema.safeParse(parsed);
   if (!result.success) {
     throw new ZodValidationError(

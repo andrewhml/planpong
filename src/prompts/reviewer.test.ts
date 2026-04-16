@@ -43,9 +43,18 @@ describe("buildReviewPrompt structuredOutput flag", () => {
 
   it("structured mode still includes the schema and instructions", () => {
     const prompt = buildReviewPrompt(plan, null, "direction", true);
-    expect(prompt).toContain("Respond with a JSON object that matches this schema");
+    expect(prompt).toContain("Output ONLY a single JSON object");
     expect(prompt).toContain("verdict");
     expect(prompt).toContain("approach_assessment");
+  });
+
+  it("structured mode uses emphatic JSON-only language for advisory providers", () => {
+    const prompt = buildReviewPrompt(plan, null, "detail", true);
+    expect(prompt).toContain("Output ONLY a single JSON object");
+    expect(prompt).toContain("No prose");
+    expect(prompt).toContain("No markdown");
+    expect(prompt).toContain("No code fences");
+    expect(prompt).toMatch(/first character.*must be `\{`/);
   });
 
   it("defaults to legacy mode (structuredOutput=false) when omitted", () => {
