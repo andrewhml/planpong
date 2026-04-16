@@ -195,6 +195,7 @@ export function buildReviewPrompt(
   planContent: string,
   priorDecisions: string | null,
   phase: ReviewPhase = "detail",
+  structuredOutput: boolean = false,
 ): string {
   const instructions =
     phase === "direction"
@@ -209,6 +210,25 @@ export function buildReviewPrompt(
       : phase === "risk"
         ? buildRiskJsonSchema()
         : buildDetailJsonSchema();
+
+  if (structuredOutput) {
+    // Structured-output mode. Some providers (OpenAI/Codex) constrain output
+    // at the token level; others (Claude) only validate post-hoc. Emphatic
+    // JSON-only instructions help the advisory case comply; the constrained
+    // case ignores them harmlessly.
+    return `${instructions}
+## Plan to Review
+
+${planContent}
+
+## Your Task
+
+Output ONLY a single JSON object conforming to the schema below. The first character of your response must be \`{\` and the last must be \`}\`. No prose. No markdown. No code fences. No preamble or explanation. No trailing text.
+
+Schema:
+
+${jsonSchema}`;
+  }
 
   return `${instructions}
 ## Plan to Review

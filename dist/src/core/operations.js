@@ -3,7 +3,8 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { buildRevisionPrompt } from "../prompts/planner.js";
 import { buildReviewPrompt, formatPriorDecisions, getReviewPhase, } from "../prompts/reviewer.js";
-import { parseFeedbackForPhase, parseRevision, isConverged, } from "./convergence.js";
+import { parseFeedbackForPhase, parseRevision, parseStructuredFeedbackForPhase, parseStructuredRevision, isConverged, StructuredOutputParseError, ZodValidationError, } from "./convergence.js";
+import { getFeedbackJsonSchemaForPhase, PlannerRevisionJsonSchema } from "../schemas/json-schema.js";
 import { createSession, writeSessionState, writeRoundFeedback, writeRoundResponse, readRoundFeedback, readRoundResponse, writeInitialPlan, } from "./session.js";
 // --- Utility functions ---
 export function hashFile(path) {
@@ -227,6 +228,76 @@ function buildPriorDecisions(cwd, sessionId, currentRound) {
     return formatPriorDecisions(priorRounds);
 }
 /**
+ * Invocation state machine — single owner of all retry/downgrade logic for
+ * provider invocations. Providers are single-shot; this function decides
+ * when to downgrade from structured output to legacy mode.
+ *
+ * Strict 2-attempt cap: structured (1) -> legacy fallback (1) -> terminal.
+ *
+ * Failure handling:
+ * - Provider `capability` error in structured mode → downgrade
+ * - Provider `fatal` error → terminal (no downgrade)
+ * - JSON.parse failure on structured output → downgrade
+ * - Zod validation failure on structured output → terminal (NOT retried)
+ * - Any failure in legacy mode → terminal
+ */
+async function invokeWithStateMachine(args) {
+    const { provider, invokeOptions, jsonSchema, buildPrompt, parseStructured, parseLegacy, roundLabel, } = args;
+    const supported = await provider.checkStructuredOutputSupport();
+    let mode = supported ? "structured" : "legacy";
+    let attempt = 0;
+    const maxAttempts = 2;
+    let lastError = null;
+    while (attempt < maxAttempts) {
+        attempt++;
+        const prompt = buildPrompt(mode === "structured");
+        const options = mode === "structured"
+            ? { ...invokeOptions, jsonSchema }
+            : { ...invokeOptions };
+        const response = await provider.invoke(prompt, options);
+        if (!response.ok) {
+            if (mode === "structured" &&
+                response.error.kind === "capability" &&
+                attempt < maxAttempts) {
+                process.stderr.write(`[planpong] ${roundLabel}: structured → legacy (reason: capability error: ${response.error.message.slice(0, 200)})\n`);
+                provider.markNonCapable();
+                mode = "legacy";
+                continue;
+            }
+            // Fatal, or already in legacy mode — terminal
+            throw new Error(`${roundLabel} failed (exit ${response.error.exitCode}, ${response.error.kind}):\n${response.error.message}`);
+        }
+        // Provider returned output — try to parse
+        try {
+            if (mode === "structured") {
+                return parseStructured(response.output);
+            }
+            return parseLegacy(response.output);
+        }
+        catch (parseError) {
+            lastError = parseError instanceof Error ? parseError : new Error(String(parseError));
+            // Zod validation failure on structured output is terminal — the model
+            // produced semantically invalid content, retrying won't help.
+            if (parseError instanceof ZodValidationError) {
+                throw parseError;
+            }
+            // JSON.parse failure on structured output triggers downgrade
+            if (mode === "structured" &&
+                parseError instanceof StructuredOutputParseError &&
+                attempt < maxAttempts) {
+                process.stderr.write(`[planpong] ${roundLabel}: structured → legacy (reason: JSON.parse failure: ${lastError.message.slice(0, 200)})\n`);
+                provider.markNonCapable();
+                mode = "legacy";
+                continue;
+            }
+            // Legacy parse failure — terminal
+            throw new Error(`${roundLabel} parse failed in ${mode} mode: ${lastError.message}`);
+        }
+    }
+    // Unreachable in normal flow — defensive
+    throw lastError ?? new Error(`${roundLabel} exhausted all attempts`);
+}
+/**
  * Run a single review round: send current plan to the reviewer for critique.
  */
 export async function runReviewRound(session, cwd, config, reviewerProvider) {
@@ -235,31 +306,19 @@ export async function runReviewRound(session, cwd, config, reviewerProvider) {
     const planContent = readFileSync(planPath, "utf-8");
     const phase = getReviewPhase(round);
     const priorDecisions = buildPriorDecisions(cwd, session.id, round);
-    const reviewPrompt = buildReviewPrompt(planContent, priorDecisions, phase);
-    const reviewResponse = await reviewerProvider.invoke(reviewPrompt, {
-        cwd,
-        model: config.reviewer.model,
-        effort: config.reviewer.effort,
-    });
-    // Try to parse even on non-zero exit — CLIs can exit 1 with valid output
-    let feedback;
-    try {
-        feedback = parseFeedbackForPhase(reviewResponse.content, phase);
-    }
-    catch (parseError) {
-        // If exit code was also non-zero, the provider genuinely failed
-        if (reviewResponse.exitCode !== 0) {
-            throw new Error(`Reviewer failed (exit ${reviewResponse.exitCode}):\n${reviewResponse.content.slice(0, 500)}`);
-        }
-        // Exit was 0 but parse failed — retry
-        const retryPrompt = `Your previous response could not be parsed. Please output ONLY a valid JSON object wrapped in <planpong-feedback> tags. The error was: ${parseError instanceof Error ? parseError.message : "parse error"}\n\nOriginal prompt:\n${reviewPrompt}`;
-        const retryResponse = await reviewerProvider.invoke(retryPrompt, {
+    const feedback = await invokeWithStateMachine({
+        provider: reviewerProvider,
+        invokeOptions: {
             cwd,
             model: config.reviewer.model,
             effort: config.reviewer.effort,
-        });
-        feedback = parseFeedbackForPhase(retryResponse.content, phase);
-    }
+        },
+        jsonSchema: getFeedbackJsonSchemaForPhase(phase),
+        buildPrompt: (structuredOutput) => buildReviewPrompt(planContent, priorDecisions, phase, structuredOutput),
+        parseStructured: (output) => parseStructuredFeedbackForPhase(output, phase),
+        parseLegacy: (output) => parseFeedbackForPhase(output, phase),
+        roundLabel: `Round ${round} review`,
+    });
     writeRoundFeedback(cwd, session.id, round, feedback);
     const severity = severityFromFeedback(feedback);
     const converged = isConverged(feedback);
@@ -296,31 +355,19 @@ export async function runRevisionRound(session, cwd, config, plannerProvider) {
     }
     const phase = getReviewPhase(round);
     const keyDecisions = extractKeyDecisions(planContent);
-    const revisionPrompt = buildRevisionPrompt(planContent, feedback, keyDecisions, null, phase);
-    const revisionResponse = await plannerProvider.invoke(revisionPrompt, {
-        cwd,
-        model: config.planner.model,
-        effort: config.planner.effort,
-    });
-    // Try to parse even on non-zero exit — CLIs can exit 1 with valid output
-    let revision;
-    try {
-        revision = parseRevision(revisionResponse.content);
-    }
-    catch (parseError) {
-        // If exit code was also non-zero, the provider genuinely failed
-        if (revisionResponse.exitCode !== 0) {
-            throw new Error(`Planner revision failed (exit ${revisionResponse.exitCode}):\n${revisionResponse.content.slice(0, 500)}`);
-        }
-        // Exit was 0 but parse failed — retry
-        const retryPrompt = `Your previous response could not be parsed. Please output ONLY a valid JSON object wrapped in <planpong-revision> tags. The error was: ${parseError instanceof Error ? parseError.message : "parse error"}\n\nOriginal prompt:\n${revisionPrompt}`;
-        const retryResponse = await plannerProvider.invoke(retryPrompt, {
+    const revision = await invokeWithStateMachine({
+        provider: plannerProvider,
+        invokeOptions: {
             cwd,
             model: config.planner.model,
             effort: config.planner.effort,
-        });
-        revision = parseRevision(retryResponse.content);
-    }
+        },
+        jsonSchema: PlannerRevisionJsonSchema,
+        buildPrompt: (structuredOutput) => buildRevisionPrompt(planContent, feedback, keyDecisions, null, phase, structuredOutput),
+        parseStructured: (output) => parseStructuredRevision(output),
+        parseLegacy: (output) => parseRevision(output),
+        roundLabel: `Round ${round} revision`,
+    });
     writeRoundResponse(cwd, session.id, round, revision);
     // Tally responses
     let accepted = 0;

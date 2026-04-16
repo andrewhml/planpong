@@ -1,6 +1,30 @@
 import { ReviewFeedbackSchema, DirectionFeedbackSchema, RiskFeedbackSchema, } from "../schemas/feedback.js";
 import { PlannerRevisionSchema, } from "../schemas/revision.js";
 /**
+ * Thrown when structured output produces text that is not valid JSON.
+ * The state machine treats this as a downgrade-eligible failure.
+ */
+export class StructuredOutputParseError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "StructuredOutputParseError";
+    }
+}
+/**
+ * Thrown when structured output produces valid JSON that fails Zod
+ * validation (e.g., a refinement violation). The state machine treats
+ * this as terminal — the structured output mechanism worked, the model
+ * just produced semantically invalid content. Retrying won't help.
+ */
+export class ZodValidationError extends Error {
+    zodError;
+    constructor(message, zodError) {
+        super(message);
+        this.name = "ZodValidationError";
+        this.zodError = zodError;
+    }
+}
+/**
  * Extract JSON from between sentinel tags. Falls back to finding JSON in
  * code fences, then tries parsing the entire content as JSON.
  */
@@ -102,9 +126,101 @@ function extractArrayFromRaw(content, field) {
     return null;
 }
 /**
- * Phase-aware feedback parser. Tries the phase-specific parser first,
- * falls back to base parser, then applies verdict coercion and blocked
- * rationale validation.
+ * Recursively strip `null` property values from an object. OpenAI-strict
+ * structured output requires every optional property to be present as
+ * `null`, but our Zod schemas use `.optional()` which expects missing keys
+ * (not nulls). This adapter removes nulls so Zod validation succeeds.
+ *
+ * Only strips top-level and nested object properties that are `null`;
+ * array elements and primitive values are preserved.
+ */
+function stripNullProperties(value) {
+    if (Array.isArray(value))
+        return value.map(stripNullProperties);
+    if (value && typeof value === "object") {
+        const result = {};
+        for (const [key, v] of Object.entries(value)) {
+            if (v === null)
+                continue;
+            result[key] = stripNullProperties(v);
+        }
+        return result;
+    }
+    return value;
+}
+/**
+ * Parse structured-output feedback. The model output is guaranteed to be
+ * valid JSON conforming to the JSON Schema we passed to the CLI, so we
+ * skip tag/fence extraction and parse directly. Throws:
+ * - `StructuredOutputParseError` if JSON.parse fails (downgrade-eligible)
+ * - `ZodValidationError` if Zod validation fails (terminal)
+ */
+export function parseStructuredFeedbackForPhase(content, phase) {
+    let parsed;
+    try {
+        parsed = JSON.parse(content);
+    }
+    catch (error) {
+        throw new StructuredOutputParseError(`Structured output is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    // OpenAI-strict output includes optional fields as null; Zod expects them missing.
+    parsed = stripNullProperties(parsed);
+    const schema = phase === "direction"
+        ? DirectionFeedbackSchema
+        : phase === "risk"
+            ? RiskFeedbackSchema
+            : ReviewFeedbackSchema;
+    const result = schema.safeParse(parsed);
+    if (!result.success) {
+        throw new ZodValidationError(`Structured output failed Zod validation for ${phase} phase: ${result.error.message}`, result.error);
+    }
+    // Apply blocked rationale validation (same rules as legacy path)
+    const feedback = result.data;
+    if (phase === "direction" && feedback.verdict === "blocked") {
+        const direction = feedback;
+        if (!direction.approach_assessment?.trim()) {
+            console.warn("[planpong] Blocked verdict without approach_assessment rationale — coercing to needs_revision");
+            return { ...direction, verdict: "needs_revision" };
+        }
+    }
+    if (phase === "risk" && feedback.verdict === "blocked") {
+        const risk = feedback;
+        if (!risk.risks || risk.risks.length === 0) {
+            console.warn("[planpong] Blocked verdict without risks rationale — coercing to needs_revision");
+            return { ...risk, verdict: "needs_revision" };
+        }
+    }
+    return feedback;
+}
+/**
+ * Parse structured-output revision (planner response). Same contract as
+ * `parseStructuredFeedbackForPhase`: throws `StructuredOutputParseError`
+ * for JSON failures and `ZodValidationError` for Zod failures.
+ */
+export function parseStructuredRevision(content) {
+    let parsed;
+    try {
+        parsed = JSON.parse(content);
+    }
+    catch (error) {
+        throw new StructuredOutputParseError(`Structured output is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    parsed = stripNullProperties(parsed);
+    const result = PlannerRevisionSchema.safeParse(parsed);
+    if (!result.success) {
+        throw new ZodValidationError(`Structured output failed Zod validation for revision: ${result.error.message}`, result.error);
+    }
+    return result.data;
+}
+/**
+ * Phase-aware feedback parser (LEGACY/DEGRADATION MODE).
+ *
+ * TODO: deprecate when structured output is stable across all providers.
+ *
+ * Tries the phase-specific parser first, falls back to base parser, then
+ * applies verdict coercion and blocked rationale validation. Used when a
+ * provider does not support structured output, or as a fallback when
+ * structured output fails.
  */
 export function parseFeedbackForPhase(content, phase) {
     if (phase === "detail") {

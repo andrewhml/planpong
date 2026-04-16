@@ -1,12 +1,40 @@
 import { randomBytes } from "node:crypto";
-import { readFileSync, unlinkSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
 const MODELS = ["gpt-5.3-codex", "o3-pro", "o3", "o4-mini"];
 const EFFORT_LEVELS = ["low", "medium", "high", "xhigh"];
+/**
+ * Classify a CLI invocation failure as `capability` (downgrade-eligible) or
+ * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
+ * requested structured output flag; fatal errors are everything else.
+ *
+ * Patterns must be narrow — codex's normal session header includes flag
+ * names like "output-schema:" in its info output, so substring matches on
+ * the flag name alone produce false positives.
+ */
+function classifyError(stderr, exitCode) {
+    const lower = stderr.toLowerCase();
+    const capabilityPatterns = [
+        /\bunknown (?:flag|option|argument)\b/,
+        /\bunrecognized (?:flag|option|argument)\b/,
+        /\binvalid_json_schema\b/,
+        /\binvalid schema\b/,
+        /\bschema is not supported\b/,
+        /\bstructured output (?:not|isn't) supported\b/,
+    ];
+    const isCapability = capabilityPatterns.some((pattern) => pattern.test(lower));
+    return {
+        kind: isCapability ? "capability" : "fatal",
+        message: stderr.slice(0, 500) || `codex exited with code ${exitCode}`,
+        exitCode,
+        stderr,
+    };
+}
 export class CodexProvider {
     name = "codex";
+    capabilityCache = null;
     async invoke(prompt, options) {
         const args = ["exec"];
         if (options.model) {
@@ -18,6 +46,19 @@ export class CodexProvider {
         // Write clean output to a temp file to avoid parsing header/footer
         const outFile = join(tmpdir(), `planpong-codex-${randomBytes(6).toString("hex")}.txt`);
         args.push("-o", outFile);
+        // Optional structured output schema
+        let schemaFile = null;
+        if (options.jsonSchema) {
+            schemaFile = join(tmpdir(), `planpong-codex-schema-${randomBytes(6).toString("hex")}.json`);
+            try {
+                writeFileSync(schemaFile, JSON.stringify(options.jsonSchema));
+                args.push("--output-schema", schemaFile);
+            }
+            catch (error) {
+                // If we can't write the schema file, fall through without structured output
+                schemaFile = null;
+            }
+        }
         // Use stdin for prompt (CLI arg has length limits)
         args.push("-");
         const start = Date.now();
@@ -29,34 +70,56 @@ export class CodexProvider {
                 reject: false,
                 input: prompt,
             });
-            let content;
+            const duration = Date.now() - start;
+            const exitCode = result.exitCode ?? 1;
+            let content = "";
             try {
                 content = readFileSync(outFile, "utf-8");
             }
             catch {
                 // Fall back to stdout if output file wasn't created
-                content = result.stdout;
+                content = result.stdout ?? "";
             }
-            // Clean up temp file
+            // Clean up temp files
             try {
                 unlinkSync(outFile);
             }
             catch {
                 // ignore
             }
+            if (schemaFile) {
+                try {
+                    unlinkSync(schemaFile);
+                }
+                catch {
+                    // ignore
+                }
+            }
+            if (content && content.trim().length > 0) {
+                return { ok: true, output: content, duration };
+            }
             return {
-                content,
-                exitCode: result.exitCode ?? 1,
-                duration: Date.now() - start,
+                ok: false,
+                error: classifyError(result.stderr ?? "", exitCode),
+                duration,
             };
         }
         catch (error) {
+            const duration = Date.now() - start;
+            // Cleanup on error path
+            if (schemaFile) {
+                try {
+                    unlinkSync(schemaFile);
+                }
+                catch {
+                    // ignore
+                }
+            }
+            const message = error instanceof Error ? error.message : "Unknown error invoking codex";
             return {
-                content: error instanceof Error
-                    ? error.message
-                    : "Unknown error invoking codex",
-                exitCode: 1,
-                duration: Date.now() - start,
+                ok: false,
+                error: { kind: "fatal", message, exitCode: 1 },
+                duration,
             };
         }
     }
@@ -72,6 +135,32 @@ export class CodexProvider {
         catch {
             return false;
         }
+    }
+    async checkStructuredOutputSupport() {
+        if (this.capabilityCache !== null) {
+            return this.capabilityCache;
+        }
+        try {
+            const result = await execa("codex", ["exec", "--help"], {
+                preferLocal: true,
+                timeout: 5_000,
+                reject: false,
+            });
+            const helpText = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+            const supported = helpText.includes("--output-schema");
+            this.capabilityCache = supported;
+            if (!supported) {
+                process.stderr.write(`[planpong] Structured output not supported by codex — using legacy parsing\n`);
+            }
+            return supported;
+        }
+        catch {
+            this.capabilityCache = false;
+            return false;
+        }
+    }
+    markNonCapable() {
+        this.capabilityCache = false;
     }
     getModels() {
         return MODELS;

@@ -3,8 +3,12 @@ import {
   extractJSON,
   parseFeedback,
   parseFeedbackForPhase,
+  parseStructuredFeedbackForPhase,
+  parseStructuredRevision,
   parseRevision,
   isConverged,
+  StructuredOutputParseError,
+  ZodValidationError,
 } from "./convergence.js";
 import type { ReviewFeedback } from "../schemas/feedback.js";
 
@@ -487,5 +491,188 @@ describe("parseFeedbackForPhase", () => {
       const result = parseFeedbackForPhase(input, "detail");
       expect(result.verdict).toBe("approved");
     });
+  });
+});
+
+// --- Structured output parsing ---
+
+describe("OpenAI-strict null stripping", () => {
+  it("strips null optional fields before Zod validation (PlannerRevision)", () => {
+    // OpenAI-strict form includes optional fields as null. Our Zod schema
+    // uses .optional() which expects missing keys. The parser must strip
+    // nulls so validation succeeds.
+    const rev = {
+      responses: [
+        {
+          issue_id: "F1",
+          action: "accepted",
+          severity_dispute: null,
+          rationale: "good catch",
+        },
+      ],
+      updated_plan: "# Plan",
+    };
+    const result = parseStructuredRevision(JSON.stringify(rev));
+    expect(result.responses[0].severity_dispute).toBeUndefined();
+  });
+
+  it("preserves non-null optional fields", () => {
+    const rev = {
+      responses: [
+        {
+          issue_id: "F1",
+          action: "accepted",
+          severity_dispute: {
+            original: "P1",
+            revised: "P2",
+            justification: "overstated",
+          },
+          rationale: "good catch",
+        },
+      ],
+      updated_plan: "# Plan",
+    };
+    const result = parseStructuredRevision(JSON.stringify(rev));
+    expect(result.responses[0].severity_dispute).toEqual({
+      original: "P1",
+      revised: "P2",
+      justification: "overstated",
+    });
+  });
+});
+
+describe("parseStructuredFeedbackForPhase", () => {
+  it("parses raw JSON without tag extraction (detail phase)", () => {
+    const fb = {
+      verdict: "approved",
+      summary: "looks good",
+      issues: [],
+    };
+    const result = parseStructuredFeedbackForPhase(JSON.stringify(fb), "detail");
+    expect(result.verdict).toBe("approved");
+    expect(result.summary).toBe("looks good");
+  });
+
+  it("parses raw JSON for direction phase", () => {
+    const fb = {
+      verdict: "needs_revision",
+      summary: "rethink",
+      issues: [],
+      confidence: "medium",
+      approach_assessment: "questionable",
+      alternatives: [],
+      assumptions: [],
+    };
+    const result = parseStructuredFeedbackForPhase(JSON.stringify(fb), "direction");
+    expect(result.verdict).toBe("needs_revision");
+    expect("confidence" in result && result.confidence).toBe("medium");
+  });
+
+  it("parses raw JSON for risk phase", () => {
+    const fb = {
+      verdict: "needs_revision",
+      summary: "risks present",
+      issues: [],
+      risk_level: "high",
+      risks: [],
+    };
+    const result = parseStructuredFeedbackForPhase(JSON.stringify(fb), "risk");
+    expect(result.verdict).toBe("needs_revision");
+    expect("risk_level" in result && result.risk_level).toBe("high");
+  });
+
+  it("throws StructuredOutputParseError on invalid JSON (downgrade-eligible)", () => {
+    expect(() => parseStructuredFeedbackForPhase("not json", "detail")).toThrow(
+      StructuredOutputParseError,
+    );
+  });
+
+  it("throws ZodValidationError on Zod refinement failure (terminal, F2)", () => {
+    // approved_with_notes with a P1 issue violates the Zod refinement —
+    // JSON Schema accepts it, Zod rejects it. Must NOT pass through.
+    const fb = {
+      verdict: "approved_with_notes",
+      summary: "looks good",
+      issues: [
+        {
+          id: "F1",
+          severity: "P1",
+          section: "test",
+          title: "test",
+          description: "test",
+          suggestion: "test",
+        },
+      ],
+    };
+    expect(() =>
+      parseStructuredFeedbackForPhase(JSON.stringify(fb), "detail"),
+    ).toThrow(ZodValidationError);
+  });
+
+  it("throws ZodValidationError when required fields missing", () => {
+    const fb = { verdict: "needs_revision" }; // missing summary, issues
+    expect(() => parseStructuredFeedbackForPhase(JSON.stringify(fb), "detail")).toThrow(
+      ZodValidationError,
+    );
+  });
+
+  it("coerces blocked verdict to needs_revision when direction rationale missing", () => {
+    const fb = {
+      verdict: "blocked",
+      summary: "blocked",
+      issues: [],
+      confidence: "low",
+      approach_assessment: "   ", // empty after trim
+      alternatives: [],
+      assumptions: [],
+    };
+    const result = parseStructuredFeedbackForPhase(JSON.stringify(fb), "direction");
+    expect(result.verdict).toBe("needs_revision");
+  });
+
+  it("preserves blocked verdict when direction rationale present", () => {
+    const fb = {
+      verdict: "blocked",
+      summary: "blocked",
+      issues: [],
+      confidence: "low",
+      approach_assessment: "depends on a deprecated API",
+      alternatives: [],
+      assumptions: [],
+    };
+    const result = parseStructuredFeedbackForPhase(JSON.stringify(fb), "direction");
+    expect(result.verdict).toBe("blocked");
+  });
+});
+
+describe("parseStructuredRevision", () => {
+  it("parses raw JSON without tag extraction", () => {
+    const rev = {
+      responses: [
+        { issue_id: "F1", action: "accepted", rationale: "good catch" },
+      ],
+      updated_plan: "# Updated\n\nNew content",
+    };
+    const result = parseStructuredRevision(JSON.stringify(rev));
+    expect(result.responses).toHaveLength(1);
+    expect(result.updated_plan).toBe("# Updated\n\nNew content");
+  });
+
+  it("throws StructuredOutputParseError on invalid JSON", () => {
+    expect(() => parseStructuredRevision("not json")).toThrow(StructuredOutputParseError);
+  });
+
+  it("throws ZodValidationError on schema mismatch", () => {
+    const rev = { responses: "not an array", updated_plan: "x" };
+    expect(() => parseStructuredRevision(JSON.stringify(rev))).toThrow(ZodValidationError);
+  });
+
+  it("preserves updated_plan with code fences and special characters", () => {
+    const rev = {
+      responses: [],
+      updated_plan: '# Plan\n\n```js\nconst x = "hi";\n```\n"quoted" & <special>',
+    };
+    const result = parseStructuredRevision(JSON.stringify(rev));
+    expect(result.updated_plan).toBe(rev.updated_plan);
   });
 });

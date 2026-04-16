@@ -34,14 +34,14 @@ export async function runLoop(options) {
         model: config.planner.model,
         effort: config.planner.effort,
     });
-    if (planResponse.exitCode !== 0) {
-        throw new Error(`Planner failed (exit ${planResponse.exitCode}):\n${planResponse.content.slice(0, 500)}`);
+    if (!planResponse.ok) {
+        throw new Error(`Planner failed (exit ${planResponse.error.exitCode}):\n${planResponse.error.message}`);
     }
     // Step 3: Write plan to disk
     const filename = resolvePlanSlug(plansDir, planName);
     const planPath = join(plansDir, filename);
     const relativePlanPath = relative(cwd, planPath);
-    let planContent = planResponse.content;
+    let planContent = planResponse.output;
     const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${formatProviderLabel(config.planner)} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
     planContent = updatePlanStatusLine(planContent, initialStatusLine);
     writeFileSync(planPath, planContent);

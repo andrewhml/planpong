@@ -30,6 +30,7 @@ export function buildRevisionPrompt(
   keyDecisions: string | null,
   priorContext: string | null,
   phase: ReviewPhase = "detail",
+  structuredOutput: boolean = false,
 ): string {
   const contextBlock = priorContext
     ? `\n## Prior Research & Constraints\n\n${priorContext}\n`
@@ -130,23 +131,7 @@ For each response, cite specific evidence: reference the plan section, the resea
         : `- Only modify sections of the plan that are directly addressed by accepted feedback. Do not reorganize, rephrase, or "improve" parts of the plan that aren't related to any issue.
 - Preserve the plan's existing structure, headings, and formatting. Your job is surgical revision, not rewriting.`;
 
-  return `${roleInstructions}
-${contextBlock}${decisionsBlock}
-## Current Plan
-
-${currentPlan}
-
-## Reviewer Feedback
-
-**Summary:** ${feedback.summary}
-
-${issuesList}
-
-## Your Task
-
-Respond with a JSON object wrapped in <planpong-revision> tags. The JSON must match this schema:
-
-\`\`\`
+  const schemaBlock = `\`\`\`
 {
   "responses": [
     {
@@ -162,7 +147,46 @@ Respond with a JSON object wrapped in <planpong-revision> tags. The JSON must ma
   ],
   "updated_plan": "The full updated plan in markdown (incorporate accepted changes)"
 }
-\`\`\`
+\`\`\``;
+
+  const commonBody = `${roleInstructions}
+${contextBlock}${decisionsBlock}
+## Current Plan
+
+${currentPlan}
+
+## Reviewer Feedback
+
+**Summary:** ${feedback.summary}
+
+${issuesList}
+
+## Your Task`;
+
+  if (structuredOutput) {
+    // Structured-output mode. Some providers constrain output at the token
+    // level; others only validate post-hoc. Emphatic JSON-only instructions
+    // help advisory providers comply; constrained providers ignore them.
+    return `${commonBody}
+
+Output ONLY a single JSON object conforming to the schema below. The first character of your response must be \`{\` and the last must be \`}\`. No prose. No markdown. No code fences. No preamble or explanation. No trailing text.
+
+Schema:
+
+${schemaBlock}
+
+Constraints embedded in your JSON response:
+- Every issue MUST have an entry in \`responses\`. Do not skip any.
+- \`updated_plan\` must be the complete plan markdown, not a diff.
+${surgicalConstraint}
+- Do NOT modify the \`**planpong:**\` status line — it is managed automatically.`;
+  }
+
+  return `${commonBody}
+
+Respond with a JSON object wrapped in <planpong-revision> tags. The JSON must match this schema:
+
+${schemaBlock}
 
 IMPORTANT:
 - Every issue MUST have a response. Do not skip any.
