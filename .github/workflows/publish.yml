@@ -15,11 +15,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
-      # Note: bundled npm 10+ in node 22 already supports --provenance and
-      # OIDC trusted publishing. Don't run `npm install -g npm@latest` —
-      # the runner image's bundled npm has had broken dependencies
-      # (missing promise-retry) that fail the upgrade step.
+          node-version: "24"
+      # Node 24 bundles npm 11+ which supports OIDC trusted publishing out
+      # of the box. Don't run `npm install -g npm@latest` — the bundled
+      # npm on older runner images has broken dependencies (missing
+      # promise-retry) that fail the upgrade step.
       - run: npm install
       - run: npm run build
       - run: npm publish --provenance --access public
