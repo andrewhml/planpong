@@ -16,7 +16,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm install -g npm@latest
+      # Note: bundled npm 10+ in node 22 already supports --provenance and
+      # OIDC trusted publishing. Don't run `npm install -g npm@latest` —
+      # the runner image's bundled npm has had broken dependencies
+      # (missing promise-retry) that fail the upgrade step.
       - run: npm install
       - run: npm run build
       - run: npm publish --provenance --access public
