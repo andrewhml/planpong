@@ -118,12 +118,27 @@ export class ClaudeProvider implements Provider {
       args.push("--model", options.model);
     }
 
+    // Persistent conversation. `--session-id` creates a new session with the
+    // given UUID; `--resume` continues an existing one. Caller must use one
+    // or the other, never both. Lets us drop heavy "current plan + prior
+    // decisions" stuffing on round 2+ since the model retains context.
+    if (options.newSessionId && options.resumeSessionId) {
+      throw new Error(
+        "claude provider: newSessionId and resumeSessionId are mutually exclusive",
+      );
+    }
+    if (options.newSessionId) {
+      args.push("--session-id", options.newSessionId);
+    } else if (options.resumeSessionId) {
+      args.push("--resume", options.resumeSessionId);
+    }
+
     const start = Date.now();
     try {
       const result = await execa("claude", args, {
         cwd: options.cwd,
         preferLocal: true,
-        timeout: options.timeout ?? 300_000,
+        timeout: options.timeout ?? 600_000,
         reject: false,
         env: cleanEnv(),
         extendEnv: false,
@@ -135,6 +150,9 @@ export class ClaudeProvider implements Provider {
 
       // claude -p can exit non-zero with valid stdout. Treat presence of
       // stdout as success even on non-zero exit.
+      // Canonical session ID for the response: echoes the input UUID
+      // (claude accepts external UUIDs as session IDs, so input == output).
+      const sessionId = options.newSessionId ?? options.resumeSessionId;
       if (result.stdout && result.stdout.trim().length > 0) {
         if (options.jsonSchema) {
           // Parse claude's envelope and extract structured_output.
@@ -151,9 +169,9 @@ export class ClaudeProvider implements Provider {
               duration,
             };
           }
-          return { ok: true, output: extracted, duration };
+          return { ok: true, output: extracted, duration, sessionId };
         }
-        return { ok: true, output: result.stdout, duration };
+        return { ok: true, output: result.stdout, duration, sessionId };
       }
 
       // No usable output — classify the failure

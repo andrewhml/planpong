@@ -9,6 +9,18 @@ export interface InvokeOptions {
      * `--output-schema` for codex).
      */
     jsonSchema?: Record<string, unknown>;
+    /**
+     * Initialize a NEW persistent conversation with this UUID. Mutually
+     * exclusive with `resumeSessionId`. After the first call succeeds, the
+     * caller must use `resumeSessionId` on subsequent calls.
+     */
+    newSessionId?: string;
+    /**
+     * Resume an EXISTING persistent conversation. The model retains context
+     * from prior turns. Only valid for sessions previously created with
+     * `newSessionId`.
+     */
+    resumeSessionId?: string;
 }
 /**
  * Provider invocation error categories. Used by the operations-layer state
@@ -32,11 +44,19 @@ export interface ProviderError {
  * single-shot — they perform one invocation and return either the output
  * or a typed error. They do NOT retry or downgrade internally; that is
  * the operations-layer state machine's job.
+ *
+ * `sessionId` (success only): the canonical conversation ID the provider
+ * used. For providers that accept an externally-generated UUID (claude),
+ * this echoes the input; for providers that generate their own IDs
+ * (codex), this is parsed from the provider's output. Caller persists
+ * this and passes it as `resumeSessionId` on subsequent calls to keep
+ * the same conversation thread.
  */
 export type ProviderResponse = {
     ok: true;
     output: string;
     duration: number;
+    sessionId?: string;
 } | {
     ok: false;
     error: ProviderError;

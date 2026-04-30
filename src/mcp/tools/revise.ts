@@ -16,12 +16,10 @@ const inputSchema = {
     .describe("Working directory (defaults to process.cwd())"),
 };
 
-export function registerRevise(server: McpServer): void {
-  server.tool(
-    "planpong_revise",
-    "Send plan + latest feedback to the planner model for revision. Writes the updated plan to disk. Call after planpong_get_feedback returns is_converged: false.",
-    inputSchema,
-    async (input) => {
+export async function reviseHandler(input: {
+  session_id: string;
+  cwd?: string;
+}) {
       const cwd = input.cwd ?? process.cwd();
       const session = readSessionState(cwd, input.session_id);
 
@@ -90,6 +88,29 @@ export function registerRevise(server: McpServer): void {
         "Revision submitted",
       );
 
+      const payload: Record<string, unknown> = {
+        round: result.round,
+        responses: result.revision.responses,
+        accepted: result.accepted,
+        rejected: result.rejected,
+        deferred: result.deferred,
+        plan_updated: result.planUpdated,
+        status_line: statusLine,
+      };
+      if (result.timing) {
+        payload.timing = result.timing;
+      }
+      if (result.edits) {
+        payload.revision_mode = result.edits.revision_mode;
+        if (result.edits.revision_mode === "edits") {
+          payload.edits_attempted = result.edits.edits_attempted;
+          payload.edits_applied = result.edits.edits_applied;
+          payload.edits_failed = result.edits.edits_failed;
+          payload.edits_recovered = result.edits.edits_recovered;
+          payload.retry_invoked = result.edits.retry_invoked;
+        }
+      }
+
       return {
         content: [
           {
@@ -98,18 +119,17 @@ export function registerRevise(server: McpServer): void {
           },
           {
             type: "text" as const,
-            text: JSON.stringify({
-              round: result.round,
-              responses: result.revision.responses,
-              accepted: result.accepted,
-              rejected: result.rejected,
-              deferred: result.deferred,
-              plan_updated: result.planUpdated,
-              status_line: statusLine,
-            }),
+            text: JSON.stringify(payload),
           },
         ],
       };
-    },
+}
+
+export function registerRevise(server: McpServer): void {
+  server.tool(
+    "planpong_revise",
+    "Send plan + latest feedback to the planner model for revision. Writes the updated plan to disk. Call after planpong_get_feedback returns is_converged: false.",
+    inputSchema,
+    reviseHandler,
   );
 }

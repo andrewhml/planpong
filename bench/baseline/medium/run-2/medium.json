@@ -1,0 +1,91 @@
+{
+  "commit": "ac41a58",
+  "timestamp": "2026-04-24T22:07:28.903Z",
+  "plan": "medium",
+  "planPath": "bench/plans/medium.md",
+  "models": {
+    "planner": "claude(claude-opus-4-6/high)",
+    "reviewer": "codex(gpt-5.3-codex/xhigh)"
+  },
+  "max_rounds": 10,
+  "outcome": "error",
+  "error": "Round 3 revision failed (exit 143, fatal):\nclaude exited with code 143",
+  "rounds": 3,
+  "total_wall_ms": 1060744,
+  "sum_round_wall_ms": 1060283,
+  "total_prompt_chars": 83001,
+  "total_output_chars": 49979,
+  "total_attempts": 6,
+  "downgrades": 0,
+  "accepted": 0,
+  "rejected": 0,
+  "deferred": 0,
+  "by_round": [
+    {
+      "round": 1,
+      "role": "review",
+      "phase": "direction",
+      "duration_ms": 45374,
+      "attempts": 1,
+      "prompt_chars": 6672,
+      "output_chars": 4451,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 1,
+      "role": "revision",
+      "phase": "direction",
+      "duration_ms": 86540,
+      "attempts": 1,
+      "prompt_chars": 8798,
+      "output_chars": 10720,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 2,
+      "role": "review",
+      "phase": "risk",
+      "duration_ms": 203815,
+      "attempts": 1,
+      "prompt_chars": 12383,
+      "output_chars": 10016,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 2,
+      "role": "revision",
+      "phase": "risk",
+      "duration_ms": 230877,
+      "attempts": 1,
+      "prompt_chars": 15293,
+      "output_chars": 22368,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 3,
+      "role": "review",
+      "phase": "detail",
+      "duration_ms": 193053,
+      "attempts": 1,
+      "prompt_chars": 19549,
+      "output_chars": 2424,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 3,
+      "role": "revision",
+      "phase": "detail",
+      "duration_ms": 300624,
+      "attempts": 1,
+      "prompt_chars": 20306,
+      "output_chars": 0,
+      "ok": false,
+      "first_attempt_error": "fatal"
+    }
+  ]
+}

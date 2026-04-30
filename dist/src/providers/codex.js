@@ -14,11 +14,37 @@ const EFFORT_LEVELS = ["low", "medium", "high", "xhigh"];
  * names like "output-schema:" in its info output, so substring matches on
  * the flag name alone produce false positives.
  */
+function extractCodexThreadId(stdout) {
+    if (!stdout)
+        return undefined;
+    // The first non-empty line of `codex exec --json` stdout is a
+    // `thread.started` or `thread.resumed` event with `thread_id`. Scan
+    // the first ~10 lines defensively in case the model emits anything
+    // else first.
+    const lines = stdout.split("\n").slice(0, 10);
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("{"))
+            continue;
+        try {
+            const evt = JSON.parse(trimmed);
+            if ((evt.type === "thread.started" || evt.type === "thread.resumed") &&
+                typeof evt.thread_id === "string") {
+                return evt.thread_id;
+            }
+        }
+        catch {
+            continue;
+        }
+    }
+    return undefined;
+}
 function classifyError(stderr, exitCode) {
     const lower = stderr.toLowerCase();
     const capabilityPatterns = [
         /\bunknown (?:flag|option|argument)\b/,
         /\bunrecognized (?:flag|option|argument)\b/,
+        /\bunexpected (?:flag|option|argument)\b/,
         /\binvalid_json_schema\b/,
         /\binvalid schema\b/,
         /\bschema is not supported\b/,
@@ -36,7 +62,18 @@ export class CodexProvider {
     name = "codex";
     capabilityCache = null;
     async invoke(prompt, options) {
-        const args = ["exec"];
+        // codex doesn't accept an externally-generated session UUID. The first
+        // call always creates a fresh thread; we capture `thread_id` from the
+        // `--json` event stream on stdout and the caller persists it. Resume
+        // subsequent calls via `codex exec resume <id>` (subcommand form).
+        if (options.newSessionId) {
+            // Silent ignore — codex generates its own ID. The caller will get
+            // the actual ID back via ProviderResponse.sessionId.
+        }
+        const isResume = options.resumeSessionId != null && options.resumeSessionId.length > 0;
+        const args = isResume
+            ? ["exec", "resume", options.resumeSessionId]
+            : ["exec"];
         if (options.model) {
             args.push("-m", options.model);
         }
@@ -46,6 +83,10 @@ export class CodexProvider {
         // Write clean output to a temp file to avoid parsing header/footer
         const outFile = join(tmpdir(), `planpong-codex-${randomBytes(6).toString("hex")}.txt`);
         args.push("-o", outFile);
+        // Always enable --json so we can capture the thread_id event from
+        // stdout. The `-o` file still receives the agent's clean text output;
+        // `--json` only changes stdout/stderr streaming.
+        args.push("--json");
         // Optional structured output schema
         let schemaFile = null;
         if (options.jsonSchema) {
@@ -66,7 +107,7 @@ export class CodexProvider {
             const result = await execa("codex", args, {
                 cwd: options.cwd,
                 preferLocal: true,
-                timeout: options.timeout ?? 300_000,
+                timeout: options.timeout ?? 600_000,
                 reject: false,
                 input: prompt,
             });
@@ -96,7 +137,13 @@ export class CodexProvider {
                 }
             }
             if (content && content.trim().length > 0) {
-                return { ok: true, output: content, duration };
+                // Capture thread_id from --json stdout. The first event is
+                // `thread.started` (fresh) or `thread.resumed` (resume). Both
+                // carry `thread_id`. We treat parse failures as "no session
+                // tracking" rather than as errors — sessions are an
+                // optimization, not a correctness requirement.
+                const sessionId = extractCodexThreadId(result.stdout);
+                return { ok: true, output: content, duration, sessionId };
             }
             return {
                 ok: false,

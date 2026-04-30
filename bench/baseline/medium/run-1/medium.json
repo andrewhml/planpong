@@ -1,0 +1,102 @@
+{
+  "commit": "ac41a58",
+  "timestamp": "2026-04-24T21:49:46.475Z",
+  "plan": "medium",
+  "planPath": "bench/plans/medium.md",
+  "models": {
+    "planner": "claude(claude-opus-4-6/high)",
+    "reviewer": "codex(gpt-5.3-codex/xhigh)"
+  },
+  "max_rounds": 10,
+  "outcome": "approved",
+  "error": null,
+  "rounds": 4,
+  "total_wall_ms": 1022679,
+  "sum_round_wall_ms": 1022352,
+  "total_prompt_chars": 111933,
+  "total_output_chars": 73138,
+  "total_attempts": 7,
+  "downgrades": 0,
+  "accepted": 15,
+  "rejected": 0,
+  "deferred": 1,
+  "by_round": [
+    {
+      "round": 1,
+      "role": "review",
+      "phase": "direction",
+      "duration_ms": 46331,
+      "attempts": 1,
+      "prompt_chars": 6672,
+      "output_chars": 4359,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 1,
+      "role": "revision",
+      "phase": "direction",
+      "duration_ms": 81263,
+      "attempts": 1,
+      "prompt_chars": 8750,
+      "output_chars": 12166,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 2,
+      "role": "review",
+      "phase": "risk",
+      "duration_ms": 166241,
+      "attempts": 1,
+      "prompt_chars": 13013,
+      "output_chars": 10398,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 2,
+      "role": "revision",
+      "phase": "risk",
+      "duration_ms": 286390,
+      "attempts": 1,
+      "prompt_chars": 17630,
+      "output_chars": 22261,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 3,
+      "role": "review",
+      "phase": "detail",
+      "duration_ms": 142901,
+      "attempts": 1,
+      "prompt_chars": 20518,
+      "output_chars": 1725,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 3,
+      "role": "revision",
+      "phase": "detail",
+      "duration_ms": 149418,
+      "attempts": 1,
+      "prompt_chars": 22335,
+      "output_chars": 20564,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 4,
+      "role": "review",
+      "phase": "detail",
+      "duration_ms": 149808,
+      "attempts": 1,
+      "prompt_chars": 23015,
+      "output_chars": 1665,
+      "ok": true,
+      "first_attempt_error": null
+    }
+  ]
+}

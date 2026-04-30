@@ -8,5 +8,6 @@ export const DEFAULT_CONFIG = {
     plans_dir: "docs/plans",
     max_rounds: 10,
     human_in_loop: true,
+    revision_mode: "full",
 };
 //# sourceMappingURL=defaults.js.map

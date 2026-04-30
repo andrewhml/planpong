@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -14,6 +14,8 @@ import {
   runReviewRound,
   type RoundSeverity,
 } from "./operations.js";
+import * as sessionModule from "./session.js";
+import { RoundMetricsSchema } from "../schemas/metrics.js";
 import type { ReviewFeedback } from "../schemas/feedback.js";
 import type {
   Provider,
@@ -463,5 +465,266 @@ describe("Invocation state machine via runReviewRound", () => {
     await runReviewRound(session, tmpDir, config, provider);
     // 2 attempts = 2 invocations, no more
     expect(provider.invokeCalls).toHaveLength(2);
+  });
+});
+
+// --- Metrics emission tests ---
+
+describe("Metrics emission via runReviewRound", () => {
+  let tmpDir: string;
+  let planPath: string;
+  let stderrSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "planpong-metrics-"));
+    mkdirSync(join(tmpDir, "docs", "plans"), { recursive: true });
+    planPath = join(tmpDir, "docs", "plans", "test-plan.md");
+    writeFileSync(planPath, "# Test Plan\n\n**Status:** Draft\n\n## Steps\n- [ ] Do thing\n");
+    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    stderrSpy.mockRestore();
+    vi.restoreAllMocks();
+    if (existsSync(tmpDir)) {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  function startSession(provider: MockProvider) {
+    const config = makeConfig();
+    const init = initReviewSession(planPath, tmpDir, config);
+    init.session.currentRound = 1;
+    return { session: init.session, config, provider };
+  }
+
+  function readMetricsFile(sessionId: string, round: number, role: "review" | "revision") {
+    const path = join(
+      tmpDir,
+      ".planpong",
+      "sessions",
+      sessionId,
+      `round-${round}-${role}-metrics.json`,
+    );
+    if (!existsSync(path)) return null;
+    const parsed = JSON.parse(readFileSync(path, "utf-8"));
+    return RoundMetricsSchema.parse(parsed);
+  }
+
+  it("structured success: writes metrics file with one ok attempt and schema_version 1", async () => {
+    const provider = new MockProvider([
+      {
+        response: {
+          ok: true,
+          output: makeFeedbackJson("needs_revision"),
+          duration: 100,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    const result = await runReviewRound(session, tmpDir, config, provider);
+
+    const metrics = readMetricsFile(session.id, 1, "review");
+    expect(metrics).not.toBeNull();
+    expect(metrics!.schema_version).toBe(1);
+    expect(metrics!.session_id).toBe(session.id);
+    expect(metrics!.round).toBe(1);
+    expect(metrics!.phase).toBe("direction");
+    expect(metrics!.role).toBe("review");
+    expect(metrics!.attempts).toHaveLength(1);
+    expect(metrics!.attempts[0].mode).toBe("structured");
+    expect(metrics!.attempts[0].ok).toBe(true);
+    expect(metrics!.attempts[0].error_kind).toBeNull();
+
+    // timing propagated in round result
+    expect(result.timing).toBeDefined();
+    expect(result.timing!.attempts).toBe(1);
+    expect(result.timing!.duration_ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it("capability downgrade: writes two attempts, structured fail then legacy ok", async () => {
+    const provider = new MockProvider([
+      {
+        response: {
+          ok: false,
+          error: { kind: "capability", message: "unknown flag", exitCode: 2 },
+          duration: 50,
+        },
+      },
+      {
+        response: {
+          ok: true,
+          output: `<planpong-feedback>${makeFeedbackJson("needs_revision")}</planpong-feedback>`,
+          duration: 100,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    await runReviewRound(session, tmpDir, config, provider);
+
+    const metrics = readMetricsFile(session.id, 1, "review");
+    expect(metrics!.attempts).toHaveLength(2);
+    expect(metrics!.attempts[0].mode).toBe("structured");
+    expect(metrics!.attempts[0].ok).toBe(false);
+    expect(metrics!.attempts[0].error_kind).toBe("capability");
+    expect(metrics!.attempts[0].error_exit_code).toBe(2);
+    expect(metrics!.attempts[1].mode).toBe("legacy");
+    expect(metrics!.attempts[1].ok).toBe(true);
+  });
+
+  it("parse downgrade: first attempt error_kind is 'parse'", async () => {
+    const provider = new MockProvider([
+      {
+        response: { ok: true, output: "not json", duration: 100 },
+      },
+      {
+        response: {
+          ok: true,
+          output: `<planpong-feedback>${makeFeedbackJson("needs_revision")}</planpong-feedback>`,
+          duration: 100,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    await runReviewRound(session, tmpDir, config, provider);
+
+    const metrics = readMetricsFile(session.id, 1, "review");
+    expect(metrics!.attempts).toHaveLength(2);
+    expect(metrics!.attempts[0].error_kind).toBe("parse");
+    expect(metrics!.attempts[1].ok).toBe(true);
+  });
+
+  it("zod failure: one attempt with error_kind 'zod', throws without second attempt", async () => {
+    const invalidJson = JSON.stringify({
+      verdict: "needs_revision",
+      summary: "test",
+      // missing required direction-phase fields
+    });
+    const provider = new MockProvider([
+      {
+        response: { ok: true, output: invalidJson, duration: 100 },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    await expect(runReviewRound(session, tmpDir, config, provider)).rejects.toThrow(
+      /Zod validation/,
+    );
+
+    const metrics = readMetricsFile(session.id, 1, "review");
+    expect(metrics!.attempts).toHaveLength(1);
+    expect(metrics!.attempts[0].error_kind).toBe("zod");
+    expect(provider.invokeCalls).toHaveLength(1);
+  });
+
+  it("metrics file is written even when round throws (fatal error)", async () => {
+    const provider = new MockProvider([
+      {
+        response: {
+          ok: false,
+          error: { kind: "fatal", message: "auth failed", exitCode: 1 },
+          duration: 50,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    await expect(runReviewRound(session, tmpDir, config, provider)).rejects.toThrow();
+
+    const metrics = readMetricsFile(session.id, 1, "review");
+    expect(metrics).not.toBeNull();
+    expect(metrics!.attempts).toHaveLength(1);
+    expect(metrics!.attempts[0].error_kind).toBe("fatal");
+  });
+
+  it("stderr emits one start line and one end line per attempt", async () => {
+    const provider = new MockProvider([
+      {
+        response: {
+          ok: true,
+          output: makeFeedbackJson("needs_revision"),
+          duration: 100,
+        },
+      },
+    ]);
+    const { session, config } = startSession(provider);
+    await runReviewRound(session, tmpDir, config, provider);
+
+    const lines = stderrSpy.mock.calls.map((c) => String(c[0]));
+    const startLines = lines.filter((l) =>
+      /^\[planpong\] R1 review .*prompt=\d+c\s*$/m.test(l),
+    );
+    const endLines = lines.filter((l) =>
+      /^\[planpong\] R1 review .*\| ok\s*$/m.test(l),
+    );
+    expect(startLines).toHaveLength(1);
+    expect(endLines).toHaveLength(1);
+  });
+});
+
+// --- Fail-open metrics I/O ---
+
+describe("writeRoundMetrics / readRoundMetrics fail-open behavior", () => {
+  let tmpDir: string;
+  let stderrSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "planpong-metrics-io-"));
+    stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    stderrSpy.mockRestore();
+    if (existsSync(tmpDir)) {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("writeRoundMetrics does not throw when target directory is missing", () => {
+    const metrics = {
+      schema_version: 1 as const,
+      session_id: "does-not-exist",
+      round: 1,
+      phase: "direction" as const,
+      role: "review" as const,
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      total_duration_ms: 100,
+      attempts: [],
+    };
+    expect(() =>
+      sessionModule.writeRoundMetrics(tmpDir, "does-not-exist", 1, "review", metrics),
+    ).not.toThrow();
+    const warn = stderrSpy.mock.calls
+      .map((c) => String(c[0]))
+      .some((s) => s.includes("[planpong] warn: failed to write metrics"));
+    expect(warn).toBe(true);
+  });
+
+  it("readRoundMetrics returns null for missing files", () => {
+    expect(
+      sessionModule.readRoundMetrics(tmpDir, "nope", 1, "review"),
+    ).toBeNull();
+  });
+
+  it("readRoundMetrics returns null for corrupt JSON", () => {
+    const sessionId = "corrupt-session";
+    const dir = join(tmpDir, ".planpong", "sessions", sessionId);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "round-1-review-metrics.json"), "{ not valid json");
+    expect(
+      sessionModule.readRoundMetrics(tmpDir, sessionId, 1, "review"),
+    ).toBeNull();
+  });
+
+  it("readRoundMetrics returns null for schema-mismatched content", () => {
+    const sessionId = "mismatch-session";
+    const dir = join(tmpDir, ".planpong", "sessions", sessionId);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "round-1-review-metrics.json"),
+      JSON.stringify({ unexpected: "shape" }),
+    );
+    expect(
+      sessionModule.readRoundMetrics(tmpDir, sessionId, 1, "review"),
+    ).toBeNull();
   });
 });

@@ -74,6 +74,7 @@ function buildDetailReviewInstructions(priorDecisions) {
 
 The plan's overall direction has already been validated. Focus on implementation completeness and correctness.
 
+- When the plan references files, function names, exports, imports, configs, or APIs, VERIFY them against the codebase using your tools (Read, Grep, Glob, Bash). A plan that references \`src/foo/bar.ts\` should have a corresponding file; a plan that calls \`someLib.thing()\` should match the library's actual API. Flag verifiable mismatches as P1 (would break implementation) — these are the issues only an independent reviewer catches.
 - Only flag issues you have concrete evidence for. Cite the plan section.
 - Assign severity honestly:
   - P1 = blocks implementation or causes failure
@@ -179,6 +180,70 @@ If the plan is approved with no issues, use:
 \`\`\`
 { "verdict": "approved", "summary": "...", "issues": [] }
 \`\`\``;
+}
+/**
+ * Incremental review prompt for resumed reviewer sessions.
+ *
+ * The reviewer has already seen the full plan (round 1) and produced its
+ * own prior critique. Instead of re-sending the full plan markdown, we
+ * send only what's changed since the model last saw it (a markdown diff)
+ * plus the new phase instructions.
+ *
+ * Falls back to full-plan content if `planDiffOrContent` is the entire
+ * plan rather than a diff (caller's choice — see operations.ts logic that
+ * skips diffing on certain cases).
+ */
+export function buildIncrementalReviewPrompt(planDiffOrContent, priorDecisions, phase = "detail", structuredOutput = false) {
+    const instructions = phase === "direction"
+        ? buildDirectionReviewInstructions()
+        : phase === "risk"
+            ? buildRiskReviewInstructions(priorDecisions)
+            : buildDetailReviewInstructions(priorDecisions);
+    const jsonSchema = phase === "direction"
+        ? buildDirectionJsonSchema()
+        : phase === "risk"
+            ? buildRiskJsonSchema()
+            : buildDetailJsonSchema();
+    const isDiff = planDiffOrContent.startsWith("```diff");
+    const planSection = isDiff
+        ? `## Plan Changes Since Last Round
+
+The plan has been revised in response to your prior feedback. Below is what changed (the rest of the plan is unchanged from your context).
+
+${planDiffOrContent}`
+        : `## Plan to Review
+
+${planDiffOrContent}`;
+    if (structuredOutput) {
+        return `${instructions}
+${planSection}
+
+## Your Task
+
+You are continuing the same review conversation. Your prior round's feedback and the plan you reviewed are in your context — use them.
+
+Output ONLY a single JSON object conforming to the schema below. The first character of your response must be \`{\` and the last must be \`}\`. No prose. No markdown. No code fences. No preamble or explanation. No trailing text.
+
+Schema:
+
+${jsonSchema}`;
+    }
+    return `${instructions}
+${planSection}
+
+## Your Task
+
+You are continuing the same review conversation. Your prior round's feedback and the plan you reviewed are in your context — use them.
+
+Respond with a JSON object wrapped in <planpong-feedback> tags conforming to:
+
+${jsonSchema}
+
+IMPORTANT: Wrap your JSON response in <planpong-feedback>...</planpong-feedback> tags.
+
+<planpong-feedback>
+YOUR_JSON_HERE
+</planpong-feedback>`;
 }
 export function buildReviewPrompt(planContent, priorDecisions, phase = "detail", structuredOutput = false) {
     const instructions = phase === "direction"

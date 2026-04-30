@@ -10,4 +10,5 @@ export const DEFAULT_CONFIG: PlanpongConfig = {
   plans_dir: "docs/plans",
   max_rounds: 10,
   human_in_loop: true,
+  revision_mode: "full",
 };

@@ -24,12 +24,10 @@ const inputSchema = {
     .describe("Working directory (defaults to process.cwd())"),
 };
 
-export function registerGetFeedback(server: McpServer): void {
-  server.tool(
-    "planpong_get_feedback",
-    "Send the current plan to the reviewer model for critique. Returns structured feedback with issues, severity counts, and convergence status.",
-    inputSchema,
-    async (input) => {
+export async function getFeedbackHandler(input: {
+  session_id: string;
+  cwd?: string;
+}) {
       const cwd = input.cwd ?? process.cwd();
       const session = readSessionState(cwd, input.session_id);
 
@@ -121,6 +119,10 @@ export function registerGetFeedback(server: McpServer): void {
         status_line: statusLine,
       };
 
+      if (result.timing) {
+        response.timing = result.timing;
+      }
+
       // Phase-specific lean fields for status line consumption
       if (result.phaseExtras.is_blocked) {
         response.is_blocked = true;
@@ -176,6 +178,13 @@ export function registerGetFeedback(server: McpServer): void {
           },
         ],
       };
-    },
+}
+
+export function registerGetFeedback(server: McpServer): void {
+  server.tool(
+    "planpong_get_feedback",
+    "Send the current plan to the reviewer model for critique. Returns structured feedback with issues, severity counts, and convergence status.",
+    inputSchema,
+    getFeedbackHandler,
   );
 }

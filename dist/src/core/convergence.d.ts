@@ -38,7 +38,23 @@ export declare function parseStructuredFeedbackForPhase(content: string, phase: 
  * `parseStructuredFeedbackForPhase`: throws `StructuredOutputParseError`
  * for JSON failures and `ZodValidationError` for Zod failures.
  */
-export declare function parseStructuredRevision(content: string): PlannerRevision;
+export type RevisionShape = "full" | "edits";
+/**
+ * Phase-aware structured-output revision parser.
+ *
+ * - `shape: "full"` (direction phase or `revision_mode: "full"` config):
+ *   accepts only `{ responses, updated_plan }`. Edits payloads are rejected.
+ * - `shape: "edits"` (risk + detail with `revision_mode: "edits"`): accepts
+ *   only `{ responses, edits }`. `updated_plan` payloads are rejected.
+ *
+ * Strict-mode `.strict()` on the Zod schemas already rejects extra fields,
+ * so a payload mixing both shapes fails validation. No silent normalization.
+ *
+ * Throws `StructuredOutputParseError` for JSON failures (downgrade-eligible)
+ * and `ZodValidationError` for shape failures (terminal — the model violated
+ * the schema).
+ */
+export declare function parseStructuredRevision(content: string, shape?: RevisionShape): PlannerRevision;
 /**
  * Phase-aware feedback parser (LEGACY/DEGRADATION MODE).
  *
@@ -50,5 +66,5 @@ export declare function parseStructuredRevision(content: string): PlannerRevisio
  * structured output fails.
  */
 export declare function parseFeedbackForPhase(content: string, phase: ReviewPhase): PhaseFeedback;
-export declare function parseRevision(content: string): PlannerRevision;
+export declare function parseRevision(content: string, shape?: RevisionShape): PlannerRevision;
 export declare function isConverged(feedback: PhaseFeedback): boolean;

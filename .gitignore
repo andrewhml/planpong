@@ -1,1 +1,3 @@
 node_modules/
+bench/results/
+bench/quality/results/
