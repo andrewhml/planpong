@@ -1,23 +1,30 @@
 #!/usr/bin/env tsx
 /**
- * Quality benchmark: inject known defects into a plan, run a single
- * planpong review round, score whether the reviewer flagged each defect.
+ * Quality benchmark v1: defect-injection harness with two scoring modes
+ * (planpong vs single-pass baseline) and an LLM-judge scorer.
  *
- * Measures: does the reviewer catch known-bad things?
- *
- * Each defect plan is paired with `expectedKeywords` — strings the
- * reviewer's feedback (issue titles + descriptions) MUST contain to count
- * as a catch. Keywords are matched case-insensitively.
+ * For each defect:
+ * 1. Seed a tmpdir with the fixture-repo + the defect plan.
+ * 2. PLANPONG mode: run a single planpong detail-phase review round.
+ * 3. BASELINE mode: run a single naive provider invocation with no
+ *    planpong scaffolding, but the same fixture access + structured output.
+ * 4. JUDGE: a third (different) model reads the defect's ground truth and
+ *    the issues raised by each mode, returns caught/not-caught with reason.
  *
  * Output: bench/quality/results/<iso>-<commit>/results.json
+ *
+ * CLI flags:
+ *   --mode planpong | baseline | both        (default: both)
+ *   --judge claude | codex                   (default: claude)
+ *   --defect <id>                            (default: all defects)
  */
 
 import {
   copyFileSync,
-  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -31,70 +38,56 @@ import {
   writeSessionState,
   writeInitialPlan,
 } from "../../src/core/session.js";
-import {
-  runReviewRound,
-  hashFile,
-} from "../../src/core/operations.js";
-import { readFileSync } from "node:fs";
+import { runReviewRound, hashFile } from "../../src/core/operations.js";
+import { DEFECTS, type Defect } from "./defects.js";
+import { runBaselineReview } from "./baseline.js";
+import { judgeDefect, type JudgeVerdict } from "./judge.js";
+import type { FeedbackIssue } from "../../src/schemas/feedback.js";
 
-interface Defect {
-  id: string;
-  planFile: string;
-  description: string;
-  // Keywords the reviewer feedback MUST contain to count as a catch.
-  // At least one keyword from each group must match (AND across groups,
-  // OR within each group).
-  expectedKeywords: string[][];
-  // Is this the no-defect control? Catch rate should be 0% on these
-  // (any flagging is a false positive — though zero is unrealistic
-  // since the reviewer always finds something).
-  isControl?: boolean;
+type Mode = "planpong" | "baseline";
+
+interface CliArgs {
+  modes: Mode[];
+  judgeProvider: "claude" | "codex";
+  defectFilter: string | null;
 }
 
-const DEFECTS: Defect[] = [
-  {
-    id: "D1-hallucinated-file",
-    planFile: "bench/quality/defects/D1-hallucinated-file.md",
-    description: "File path typo: idnex.ts instead of index.ts",
-    expectedKeywords: [
-      ["idnex", "typo", "misspell", "wrong file", "filename", "path", "non-existent", "incorrect file"],
-    ],
-  },
-  {
-    id: "D2-internal-contradiction",
-    planFile: "bench/quality/defects/D2-internal-contradiction.md",
-    description: "Step contradicts Key Decisions (custom handler vs commander built-in)",
-    expectedKeywords: [
-      ["contradict", "inconsist", "conflict", "mismatch", "disagree"],
-    ],
-  },
-  {
-    id: "D3-missing-step",
-    planFile: "bench/quality/defects/D3-missing-step.md",
-    description: "Missing step: how does program.version() receive the version string?",
-    expectedKeywords: [
-      ["package.json", "version", "missing", "how", "where", "read", "load", "import"],
-    ],
-  },
-  {
-    id: "control",
-    planFile: "bench/plans/small.md",
-    description: "Original plan, no defect",
-    expectedKeywords: [],
-    isControl: true,
-  },
-];
+function parseArgs(argv: string[]): CliArgs {
+  const args = argv.slice(2);
+  let modes: Mode[] = ["planpong", "baseline"];
+  let judgeProvider: "claude" | "codex" = "claude";
+  let defectFilter: string | null = null;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--mode") {
+      const v = args[++i];
+      if (v === "both") modes = ["planpong", "baseline"];
+      else if (v === "planpong") modes = ["planpong"];
+      else if (v === "baseline") modes = ["baseline"];
+      else die(`--mode must be planpong | baseline | both, got '${v}'`);
+    } else if (arg === "--judge") {
+      const v = args[++i];
+      if (v !== "claude" && v !== "codex") {
+        die(`--judge must be claude | codex, got '${v}'`);
+      }
+      judgeProvider = v;
+    } else if (arg === "--defect") {
+      defectFilter = args[++i] ?? null;
+    } else if (arg === "--help" || arg === "-h") {
+      process.stdout.write(
+        "Usage: tsx bench/quality/run.ts [--mode planpong|baseline|both] [--judge claude|codex] [--defect <id>]\n",
+      );
+      process.exit(0);
+    } else {
+      die(`Unknown argument: ${arg}`);
+    }
+  }
+  return { modes, judgeProvider, defectFilter };
+}
 
-interface RunResult {
-  defectId: string;
-  description: string;
-  isControl: boolean;
-  caught: boolean;
-  matchedKeywords: string[];
-  issueCount: number;
-  issues: Array<{ id: string; severity: string; title: string; description: string }>;
-  reviewDurationMs: number;
-  outputChars: number;
+function die(msg: string): never {
+  process.stderr.write(`${msg}\n`);
+  process.exit(2);
 }
 
 function copyDirRecursive(src: string, dest: string): void {
@@ -113,7 +106,9 @@ function copyDirRecursive(src: string, dest: string): void {
 
 function gitSha(): string {
   try {
-    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+    return execSync("git rev-parse --short HEAD", {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
       .toString()
       .trim();
   } catch {
@@ -125,48 +120,21 @@ function isoStamp(): string {
   return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 }
 
-function scoreFeedback(
-  feedback: { issues: Array<{ title: string; description: string; suggestion?: string; section?: string }> },
-  expectedKeywords: string[][],
-): { caught: boolean; matchedKeywords: string[] } {
-  if (expectedKeywords.length === 0) {
-    return { caught: false, matchedKeywords: [] };
-  }
-  const allText = feedback.issues
-    .map((i) =>
-      [i.title, i.description, i.suggestion ?? "", i.section ?? ""].join(" "),
-    )
-    .join(" ")
-    .toLowerCase();
+function seedScratch(repoRoot: string, defect: Defect): {
+  scratch: string;
+  planRelPath: string;
+  planText: string;
+} {
+  const scratch = mkdtempSync(
+    join(tmpdir(), `planpong-quality-${defect.id}-`),
+  );
 
-  const matchedKeywords: string[] = [];
-  let allGroupsMatched = true;
-  for (const group of expectedKeywords) {
-    const matches = group.filter((kw) => allText.includes(kw.toLowerCase()));
-    if (matches.length === 0) {
-      allGroupsMatched = false;
-    } else {
-      matchedKeywords.push(...matches);
-    }
-  }
-  return { caught: allGroupsMatched, matchedKeywords };
-}
-
-async function runSingleDefect(
-  defect: Defect,
-  repoRoot: string,
-): Promise<RunResult> {
-  // Each defect runs in its own scratch dir so sessions don't collide.
-  const scratch = mkdtempSync(join(tmpdir(), `planpong-quality-${defect.id}-`));
-
-  // Seed the scratch with the fixture repo (a small Node CLI codebase the
-  // test plans reference). Without this the reviewer cannot verify file
-  // paths or symbols against any real source — D1's filename typo
-  // `src/cli/idnex.ts` is undetectable in an empty workspace.
+  // Seed fixture so the reviewer can verify file references against real
+  // source. Without this, defects like D1/D5/D10 are undetectable.
   const fixtureRoot = resolve(repoRoot, "bench/quality/fixture-repo");
   copyDirRecursive(fixtureRoot, scratch);
 
-  // Tiny git repo so codex's trusted-directory check passes
+  // Codex requires a git repo for its trusted-directory check.
   try {
     execSync("git init -q && git add -A && git commit -q -m init", {
       cwd: scratch,
@@ -176,21 +144,41 @@ async function runSingleDefect(
     // best effort
   }
 
-  const planContent = readFileSync(resolve(repoRoot, defect.planFile), "utf-8");
+  const planText = readFileSync(resolve(repoRoot, defect.planFile), "utf-8");
   const planRelPath = `docs/plans/${basename(defect.planFile)}`;
   mkdirSync(dirname(resolve(scratch, planRelPath)), { recursive: true });
-  writeFileSync(resolve(scratch, planRelPath), planContent);
+  writeFileSync(resolve(scratch, planRelPath), planText);
+  return { scratch, planRelPath, planText };
+}
 
+interface ModeResult {
+  issues: Array<Pick<FeedbackIssue, "id" | "severity" | "section" | "title" | "description" | "suggestion">>;
+  durationMs: number;
+  outputChars: number;
+  error?: string;
+}
+
+interface DefectRunResult {
+  defectId: string;
+  description: string;
+  isControl: boolean;
+  modes: Partial<Record<Mode, ModeResult>>;
+  judges: Partial<Record<Mode, JudgeVerdict & { judgeDurationMs: number; error?: string }>>;
+}
+
+async function runPlanpongMode(
+  defect: Defect,
+  repoRoot: string,
+): Promise<ModeResult> {
+  const { scratch, planRelPath, planText } = seedScratch(repoRoot, defect);
   const config = loadConfig({
     cwd: repoRoot,
     overrides: { autonomous: true, maxRounds: 1 },
   });
-
   const reviewerProvider = getProvider(config.reviewer.provider);
   if (!reviewerProvider) {
     throw new Error(`reviewer provider not found: ${config.reviewer.provider}`);
   }
-
   const planHash = hashFile(resolve(scratch, planRelPath));
   const session = createSession(
     scratch,
@@ -200,45 +188,133 @@ async function runSingleDefect(
     planHash,
   );
   session.status = "in_review";
-  // Use detail phase (round 3+) — direction phase is explicitly told NOT to
-  // focus on file paths or implementation specifics, which is exactly what
-  // the defects test. Detail phase is the right venue for verifying file
-  // existence, function names, contradictions in implementation steps.
+  // Detail phase — direction phase is told NOT to focus on file paths,
+  // and risk phase is pre-mortem. Detail is where path/symbol verification
+  // belongs, which is what most of these defects test.
   session.currentRound = 3;
   writeSessionState(scratch, session);
-  writeInitialPlan(scratch, session.id, planContent);
+  writeInitialPlan(scratch, session.id, planText);
 
-  process.stdout.write(`[quality] ${defect.id} starting review…\n`);
   const start = Date.now();
-  const result = await runReviewRound(session, scratch, config, reviewerProvider);
-  const reviewDurationMs = Date.now() - start;
-
-  const score = scoreFeedback(
-    { issues: result.feedback.issues },
-    defect.expectedKeywords,
+  const result = await runReviewRound(
+    session,
+    scratch,
+    config,
+    reviewerProvider,
   );
+  const durationMs = Date.now() - start;
 
   return {
-    defectId: defect.id,
-    description: defect.description,
-    isControl: defect.isControl ?? false,
-    caught: score.caught,
-    matchedKeywords: score.matchedKeywords,
-    issueCount: result.feedback.issues.length,
     issues: result.feedback.issues.map((i) => ({
       id: i.id,
       severity: i.severity,
+      section: i.section,
       title: i.title,
       description: i.description,
+      suggestion: i.suggestion,
     })),
-    reviewDurationMs,
-    outputChars: 0,
+    durationMs,
+    outputChars: 0, // structured output goes through, not surfaced here
   };
 }
 
+async function runBaselineMode(
+  defect: Defect,
+  repoRoot: string,
+): Promise<ModeResult> {
+  const { scratch, planText } = seedScratch(repoRoot, defect);
+  const config = loadConfig({
+    cwd: repoRoot,
+    overrides: { autonomous: true, maxRounds: 1 },
+  });
+  const reviewerProvider = getProvider(config.reviewer.provider);
+  if (!reviewerProvider) {
+    throw new Error(`reviewer provider not found: ${config.reviewer.provider}`);
+  }
+  const result = await runBaselineReview({
+    reviewerProvider,
+    reviewerModel: config.reviewer.model,
+    reviewerEffort: config.reviewer.effort,
+    cwd: scratch,
+    planText,
+    timeoutMs: 600_000,
+  });
+  return {
+    issues: result.issues.map((i) => ({
+      id: i.id,
+      severity: i.severity,
+      section: i.section,
+      title: i.title,
+      description: i.description,
+      suggestion: i.suggestion,
+    })),
+    durationMs: result.durationMs,
+    outputChars: result.outputChars,
+  };
+}
+
+async function judgeMode(
+  defect: Defect,
+  modeResult: ModeResult,
+  judgeProviderName: "claude" | "codex",
+  judgeCwd: string,
+): Promise<JudgeVerdict & { judgeDurationMs: number; error?: string }> {
+  const provider = getProvider(judgeProviderName);
+  if (!provider) {
+    return {
+      caught: false,
+      matched_issue_id: null,
+      reasoning: `judge provider '${judgeProviderName}' not registered`,
+      judgeDurationMs: 0,
+      error: "judge provider missing",
+    };
+  }
+  try {
+    const verdict = await judgeDefect({
+      judgeProvider: provider,
+      judgeCwd,
+      defect,
+      issues: modeResult.issues as FeedbackIssue[],
+      timeoutMs: 300_000,
+    });
+    return verdict;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      caught: false,
+      matched_issue_id: null,
+      reasoning: `judge failed: ${msg}`,
+      judgeDurationMs: 0,
+      error: msg,
+    };
+  }
+}
+
+function makeJudgeCwd(repoRoot: string): string {
+  // Judge needs a cwd that is a git repo (codex won't run otherwise) but
+  // does NOT need the fixture — the judge sees only text. Use a tiny
+  // throwaway dir.
+  const dir = mkdtempSync(join(tmpdir(), "planpong-judge-"));
+  try {
+    execSync("git init -q && git commit --allow-empty -q -m init", {
+      cwd: dir,
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "judge",
+        GIT_AUTHOR_EMAIL: "judge@bench.local",
+        GIT_COMMITTER_NAME: "judge",
+        GIT_COMMITTER_EMAIL: "judge@bench.local",
+      },
+    });
+  } catch {
+    // best effort
+  }
+  return dir;
+}
+
 async function main(): Promise<void> {
-  // ESM-friendly repo-root detection. The bench script lives in
-  // bench/quality/, so resolve up two levels.
+  const args = parseArgs(process.argv);
   const repoRoot = resolve(
     new URL(".", import.meta.url).pathname,
     "..",
@@ -249,61 +325,150 @@ async function main(): Promise<void> {
   const outDir = resolve(repoRoot, `bench/quality/results/${stamp}-${sha}`);
   mkdirSync(outDir, { recursive: true });
 
-  const results: RunResult[] = [];
-  for (const defect of DEFECTS) {
-    try {
-      const result = await runSingleDefect(defect, repoRoot);
-      results.push(result);
-      process.stdout.write(
-        `[quality] ${defect.id}: ${result.caught ? "CAUGHT" : "MISSED"} (${result.issueCount} issues, ${result.matchedKeywords.length} keyword hits)\n`,
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[quality] ${defect.id} ERROR: ${msg}\n`);
-      results.push({
-        defectId: defect.id,
-        description: defect.description,
-        isControl: defect.isControl ?? false,
-        caught: false,
-        matchedKeywords: [],
-        issueCount: 0,
-        issues: [],
-        reviewDurationMs: 0,
-        outputChars: 0,
-      });
-    }
+  const defects = args.defectFilter
+    ? DEFECTS.filter((d) => d.id === args.defectFilter)
+    : DEFECTS;
+  if (defects.length === 0) {
+    die(`No defects matched filter '${args.defectFilter ?? ""}'.`);
   }
 
-  const summary = {
-    commit: sha,
-    timestamp: new Date().toISOString(),
-    models: {
-      planner: "claude(claude-opus-4-6/high)",
-      reviewer: "codex(gpt-5.3-codex/xhigh)",
-    },
-    catch_rate:
-      results.filter((r) => !r.isControl && r.caught).length /
-      Math.max(1, results.filter((r) => !r.isControl).length),
-    control_false_positive: results.find((r) => r.isControl)?.caught ?? false,
-    results,
-  };
+  const config = loadConfig({ cwd: repoRoot, overrides: { autonomous: true } });
 
+  const judgeCwd = makeJudgeCwd(repoRoot);
+
+  process.stdout.write(
+    `Bench: defects=${defects.length} modes=[${args.modes.join(", ")}] judge=${args.judgeProvider}\n`,
+  );
+
+  const allResults: DefectRunResult[] = [];
+
+  for (const defect of defects) {
+    process.stdout.write(`\n[${defect.id}] ${defect.description}\n`);
+    const result: DefectRunResult = {
+      defectId: defect.id,
+      description: defect.description,
+      isControl: defect.isControl ?? false,
+      modes: {},
+      judges: {},
+    };
+
+    for (const mode of args.modes) {
+      process.stdout.write(`  ${mode} review starting…\n`);
+      try {
+        const modeResult =
+          mode === "planpong"
+            ? await runPlanpongMode(defect, repoRoot)
+            : await runBaselineMode(defect, repoRoot);
+        result.modes[mode] = modeResult;
+        process.stdout.write(
+          `  ${mode} done: ${modeResult.issues.length} issues, ${(modeResult.durationMs / 1000).toFixed(1)}s\n`,
+        );
+
+        process.stdout.write(`  ${mode} judging…\n`);
+        const verdict = await judgeMode(
+          defect,
+          modeResult,
+          args.judgeProvider,
+          judgeCwd,
+        );
+        result.judges[mode] = verdict;
+        process.stdout.write(
+          `  ${mode} judge: ${verdict.caught ? "CAUGHT" : "MISSED"} — ${verdict.reasoning.slice(0, 120)}\n`,
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.modes[mode] = {
+          issues: [],
+          durationMs: 0,
+          outputChars: 0,
+          error: msg,
+        };
+        process.stderr.write(`  ${mode} ERROR: ${msg}\n`);
+      }
+    }
+
+    allResults.push(result);
+    // Write incrementally so partial runs are recoverable if a later
+    // defect crashes. Each write fully overwrites the file with the
+    // accumulated state.
+    writeFileSync(
+      join(outDir, "results.json"),
+      JSON.stringify(buildSummary(args, config, allResults), null, 2),
+    );
+  }
+
+  const summary = buildSummary(args, config, allResults);
   writeFileSync(
     join(outDir, "results.json"),
     JSON.stringify(summary, null, 2),
   );
 
-  process.stdout.write("\n=== Quality bench summary ===\n");
-  process.stdout.write(
-    `catch rate (defects only): ${(summary.catch_rate * 100).toFixed(0)}% (${results.filter((r) => !r.isControl && r.caught).length}/${results.filter((r) => !r.isControl).length})\n`,
-  );
-  for (const r of results) {
-    const tag = r.isControl ? "[CTRL]" : r.caught ? "[CATCH]" : "[MISS] ";
+  process.stdout.write("\n=== Quality bench v1 summary ===\n");
+  for (const mode of args.modes) {
+    const summaryForMode = summary.summaries[mode];
+    if (!summaryForMode) continue;
     process.stdout.write(
-      `${tag} ${r.defectId}: ${r.issueCount} issues, ${r.matchedKeywords.length} matched [${r.matchedKeywords.slice(0, 3).join(", ")}]\n`,
+      `${mode.padEnd(9)}: catch=${(summaryForMode.catch_rate * 100).toFixed(0)}% (${summaryForMode.caught}/${summaryForMode.total_defects})  fp=${summaryForMode.control_false_positive ? "yes" : "no"}\n`,
     );
   }
-  process.stdout.write(`written to ${outDir}/results.json\n`);
+  process.stdout.write("\nPer-defect:\n");
+  for (const r of allResults) {
+    const cells = args.modes
+      .map((m) => {
+        const j = r.judges[m];
+        if (!j) return `${m}=ERR`;
+        return `${m}=${j.caught ? "✓" : "✗"}`;
+      })
+      .join("  ");
+    process.stdout.write(
+      `  ${r.isControl ? "[CTRL]" : "      "} ${r.defectId.padEnd(28)} ${cells}\n`,
+    );
+  }
+  process.stdout.write(`\nwritten to ${outDir}/results.json\n`);
+}
+
+function buildSummary(
+  args: CliArgs,
+  config: ReturnType<typeof loadConfig>,
+  results: DefectRunResult[],
+) {
+  const summaries: Partial<
+    Record<
+      Mode,
+      {
+        total_defects: number;
+        caught: number;
+        catch_rate: number;
+        control_false_positive: boolean;
+      }
+    >
+  > = {};
+  for (const mode of args.modes) {
+    const defectResults = results.filter((r) => !r.isControl);
+    const caught = defectResults.filter((r) => r.judges[mode]?.caught).length;
+    const total = defectResults.length;
+    const control = results.find((r) => r.isControl);
+    summaries[mode] = {
+      total_defects: total,
+      caught,
+      catch_rate: total === 0 ? 0 : caught / total,
+      control_false_positive: control?.judges[mode]?.caught ?? false,
+    };
+  }
+
+  return {
+    schema_version: 1,
+    commit: gitSha(),
+    timestamp: new Date().toISOString(),
+    models: {
+      reviewer: `${config.reviewer.provider}(${config.reviewer.model ?? "default"}/${config.reviewer.effort ?? "default"})`,
+      planner: `${config.planner.provider}(${config.planner.model ?? "default"}/${config.planner.effort ?? "default"})`,
+      judge: args.judgeProvider,
+    },
+    modes: args.modes,
+    summaries,
+    results,
+  };
 }
 
 main().catch((err) => {
