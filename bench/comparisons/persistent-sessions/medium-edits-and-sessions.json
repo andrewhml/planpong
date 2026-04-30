@@ -1,0 +1,80 @@
+{
+  "commit": "ac41a58",
+  "timestamp": "2026-04-30T01:19:33.344Z",
+  "plan": "medium",
+  "planPath": "bench/plans/medium.md",
+  "models": {
+    "planner": "claude(claude-opus-4-6/high)",
+    "reviewer": "codex(gpt-5.3-codex/xhigh)"
+  },
+  "max_rounds": 10,
+  "outcome": "approved",
+  "error": null,
+  "rounds": 3,
+  "total_wall_ms": 532782,
+  "sum_round_wall_ms": 532584,
+  "total_prompt_chars": 73810,
+  "total_output_chars": 35153,
+  "total_attempts": 6,
+  "downgrades": 1,
+  "accepted": 10,
+  "rejected": 0,
+  "deferred": 0,
+  "by_round": [
+    {
+      "round": 1,
+      "role": "review",
+      "phase": "direction",
+      "duration_ms": 50244,
+      "attempts": 1,
+      "prompt_chars": 6672,
+      "output_chars": 4935,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 1,
+      "role": "revision",
+      "phase": "direction",
+      "duration_ms": 135034,
+      "attempts": 1,
+      "prompt_chars": 9049,
+      "output_chars": 12488,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 2,
+      "role": "review",
+      "phase": "risk",
+      "duration_ms": 79977,
+      "attempts": 2,
+      "prompt_chars": 31991,
+      "output_chars": 8105,
+      "ok": true,
+      "first_attempt_error": "capability"
+    },
+    {
+      "round": 2,
+      "role": "revision",
+      "phase": "risk",
+      "duration_ms": 239757,
+      "attempts": 1,
+      "prompt_chars": 15355,
+      "output_chars": 9106,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 3,
+      "role": "review",
+      "phase": "detail",
+      "duration_ms": 27572,
+      "attempts": 1,
+      "prompt_chars": 10743,
+      "output_chars": 519,
+      "ok": true,
+      "first_attempt_error": null
+    }
+  ]
+}
