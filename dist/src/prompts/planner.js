@@ -28,8 +28,23 @@ export function buildRevisionPrompt(currentPlan, feedback, keyDecisions, priorCo
         ? `\n## Key Decisions From Plan\n\n${keyDecisions}\n`
         : "";
     const issuesList = feedback.issues
-        .map((issue) => `### ${issue.id} (${issue.severity}): ${issue.title}\n**Section:** ${issue.section}\n**Description:** ${issue.description}\n**Suggestion:** ${issue.suggestion}`)
+        .map((issue) => {
+        const verifiedLine = issue.verified === false
+            ? "\n**Verified:** false — quoted evidence could not be located in the plan; treat as likely hallucinated"
+            : issue.verified === true
+                ? "\n**Verified:** true"
+                : "";
+        return `### ${issue.id} (${issue.severity}): ${issue.title}\n**Section:** ${issue.section}${verifiedLine}\n**Description:** ${issue.description}\n**Suggestion:** ${issue.suggestion}`;
+    })
         .join("\n\n");
+    const evidenceVerificationBlock = `\n## Evidence Verification
+
+Each issue carries a \`Verified\` flag. Issues with \`Verified: false\` could not be anchored to verbatim text in the plan and may be reviewer hallucinations.
+
+- For unverified issues, address them only if you confirm the underlying concern is real by reading the plan yourself.
+- If the concern is not present in the plan as written, mark the issue \`rejected\` with rationale "unverified evidence" (or a short variant explaining what you checked).
+- Do NOT spend revision tokens fixing things that don't exist in the plan.
+`;
     const directionInstructions = `You are revising a plan based on HIGH-LEVEL directional feedback. This is the first review pass — the reviewer evaluated whether the plan is solving the right problem with the right approach.
 
 You are the plan's ADVOCATE, but be open to directional changes. If the reviewer identifies a fundamentally better approach or a critical missing constraint, this is the round to make sweeping changes — restructure sections, change the approach, adjust scope. Don't be precious about the current draft.
@@ -176,7 +191,7 @@ ${currentPlan}
 **Summary:** ${feedback.summary}
 
 ${issuesList}
-
+${evidenceVerificationBlock}
 ## Your Task`;
     const outputConstraint = useEdits ? editsConstraints : fullModeConstraint;
     if (structuredOutput) {
@@ -230,7 +245,14 @@ YOUR_JSON_HERE
 export function buildIncrementalRevisionPrompt(feedback, phase, structuredOutput, revisionMode = "full") {
     const useEdits = revisionMode === "edits" && phase !== "direction";
     const issuesList = feedback.issues
-        .map((issue) => `### ${issue.id} (${issue.severity}): ${issue.title}\n**Section:** ${issue.section}\n**Description:** ${issue.description}\n**Suggestion:** ${issue.suggestion}`)
+        .map((issue) => {
+        const verifiedLine = issue.verified === false
+            ? "\n**Verified:** false — quoted evidence could not be located in the plan; treat as likely hallucinated"
+            : issue.verified === true
+                ? "\n**Verified:** true"
+                : "";
+        return `### ${issue.id} (${issue.severity}): ${issue.title}\n**Section:** ${issue.section}${verifiedLine}\n**Description:** ${issue.description}\n**Suggestion:** ${issue.suggestion}`;
+    })
         .join("\n\n");
     const phaseLabel = phase === "direction"
         ? "DIRECTION"
@@ -285,6 +307,8 @@ The reviewer has produced new feedback for this round. Process it below.
 **Summary:** ${feedback.summary}
 
 ${issuesList}
+
+Each issue carries a \`Verified\` flag. Issues with \`Verified: false\` could not be anchored to verbatim text in the plan and may be reviewer hallucinations — address only if you confirm the concern is real, otherwise mark \`rejected\` with rationale "unverified evidence".
 
 ## Your Task`;
     if (structuredOutput) {

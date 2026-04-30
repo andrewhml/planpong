@@ -89,4 +89,58 @@ describe("reviseHandler timing response contract", () => {
 
     expect("timing" in payload).toBe(false);
   });
+
+  it("counts rejections with rationale matching 'unverified evidence' into unverified_rejected", async () => {
+    const sessionId = seedSession();
+    const result: RevisionRoundResult = {
+      round: 1,
+      revision: {
+        responses: [
+          {
+            issue_id: "F1",
+            action: "rejected",
+            rationale: "unverified evidence — quote not in plan",
+          },
+          {
+            issue_id: "F2",
+            action: "rejected",
+            rationale: "Unverified Evidence (case-insensitive)",
+          },
+          {
+            issue_id: "F3",
+            action: "rejected",
+            rationale: "actual disagreement with the suggestion",
+          },
+          { issue_id: "F4", action: "accepted", rationale: "good catch" },
+        ],
+        updated_plan:
+          "# Plan\n\n**Status:** Draft\n**planpong:** R1/10 | claude → codex | x\n\n## Steps\n- [ ] x\n",
+      },
+      accepted: 1,
+      rejected: 3,
+      deferred: 0,
+      planUpdated: true,
+    };
+    vi.spyOn(operations, "runRevisionRound").mockResolvedValue(result);
+
+    const handlerResult = await reviseHandler({
+      session_id: sessionId,
+      cwd: tmpDir,
+    });
+    const payload = parseResponseJson(handlerResult);
+
+    expect(payload.unverified_rejected).toBe(2);
+  });
+
+  it("reports unverified_rejected=0 when no rationale matches", async () => {
+    const sessionId = seedSession();
+    vi.spyOn(operations, "runRevisionRound").mockResolvedValue(
+      makeRevisionResult({ timing: undefined }),
+    );
+
+    const result = await reviseHandler({ session_id: sessionId, cwd: tmpDir });
+    const payload = parseResponseJson(result);
+
+    expect(payload.unverified_rejected).toBe(0);
+  });
 });

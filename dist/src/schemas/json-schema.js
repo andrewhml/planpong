@@ -20,6 +20,12 @@ import { PlannerRevisionSchema, DirectionRevisionSchema, EditsRevisionSchema, } 
 const OBSERVABILITY_FIELDS = new Set([
     "fallback_used",
     "missing_phase_fields",
+    // Evidence-verification fields populated post-parse — never produced by
+    // the model. `quoted_text` is intentionally NOT here: the reviewer
+    // produces it, and its presence is what the verifier checks.
+    "verified",
+    "quote_compliance_warning",
+    "unverified_count",
 ]);
 function stripObservabilityFields(node) {
     if (Array.isArray(node))

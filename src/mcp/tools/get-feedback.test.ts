@@ -97,4 +97,68 @@ describe("getFeedbackHandler timing response contract", () => {
 
     expect("timing" in payload).toBe(false);
   });
+
+  it("surfaces unverified_count when set on feedback", async () => {
+    const sessionId = seedSession();
+    const fb = makeFeedback();
+    fb.unverified_count = 2;
+    vi.spyOn(operations, "runReviewRound").mockResolvedValue({
+      round: 1,
+      feedback: fb,
+      severity: { P1: 0, P2: 0, P3: 0 },
+      converged: false,
+      phaseExtras: { confidence: "high" },
+    });
+
+    const result = await getFeedbackHandler({
+      session_id: sessionId,
+      cwd: tmpDir,
+    });
+    const payload = parseResponseJson(result);
+
+    expect(payload.unverified_count).toBe(2);
+  });
+
+  it("surfaces quote_compliance_warning when true on feedback", async () => {
+    const sessionId = seedSession();
+    const fb = makeFeedback();
+    fb.quote_compliance_warning = true;
+    fb.unverified_count = 0;
+    vi.spyOn(operations, "runReviewRound").mockResolvedValue({
+      round: 1,
+      feedback: fb,
+      severity: { P1: 0, P2: 0, P3: 0 },
+      converged: false,
+      phaseExtras: { confidence: "high" },
+    });
+
+    const result = await getFeedbackHandler({
+      session_id: sessionId,
+      cwd: tmpDir,
+    });
+    const payload = parseResponseJson(result);
+
+    expect(payload.quote_compliance_warning).toBe(true);
+  });
+
+  it("omits quote_compliance_warning when feedback flag is unset/false", async () => {
+    const sessionId = seedSession();
+    const fb = makeFeedback();
+    fb.quote_compliance_warning = false;
+    vi.spyOn(operations, "runReviewRound").mockResolvedValue({
+      round: 1,
+      feedback: fb,
+      severity: { P1: 0, P2: 0, P3: 0 },
+      converged: false,
+      phaseExtras: { confidence: "high" },
+    });
+
+    const result = await getFeedbackHandler({
+      session_id: sessionId,
+      cwd: tmpDir,
+    });
+    const payload = parseResponseJson(result);
+
+    expect("quote_compliance_warning" in payload).toBe(false);
+  });
 });

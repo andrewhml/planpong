@@ -6,6 +6,8 @@ export declare const FeedbackIssueSchema: z.ZodObject<{
     title: z.ZodString;
     description: z.ZodString;
     suggestion: z.ZodString;
+    quoted_text: z.ZodOptional<z.ZodString>;
+    verified: z.ZodOptional<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     id: string;
     severity: "P1" | "P2" | "P3";
@@ -13,6 +15,8 @@ export declare const FeedbackIssueSchema: z.ZodObject<{
     title: string;
     description: string;
     suggestion: string;
+    quoted_text?: string | undefined;
+    verified?: boolean | undefined;
 }, {
     id: string;
     severity: "P1" | "P2" | "P3";
@@ -20,6 +24,8 @@ export declare const FeedbackIssueSchema: z.ZodObject<{
     title: string;
     description: string;
     suggestion: string;
+    quoted_text?: string | undefined;
+    verified?: boolean | undefined;
 }>;
 export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
     verdict: z.ZodEnum<["needs_revision", "approved", "approved_with_notes", "blocked"]>;
@@ -31,6 +37,8 @@ export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
         title: z.ZodString;
         description: z.ZodString;
         suggestion: z.ZodString;
+        quoted_text: z.ZodOptional<z.ZodString>;
+        verified: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -38,6 +46,8 @@ export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }, {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -45,9 +55,13 @@ export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }>, "many">;
     fallback_used: z.ZodOptional<z.ZodBoolean>;
     missing_phase_fields: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
+    unverified_count: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     issues: {
         id: string;
@@ -56,11 +70,15 @@ export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }[];
     verdict: "needs_revision" | "approved" | "approved_with_notes" | "blocked";
     summary: string;
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
+    quote_compliance_warning?: boolean | undefined;
+    unverified_count?: number | undefined;
 }, {
     issues: {
         id: string;
@@ -69,11 +87,15 @@ export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }[];
     verdict: "needs_revision" | "approved" | "approved_with_notes" | "blocked";
     summary: string;
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
+    quote_compliance_warning?: boolean | undefined;
+    unverified_count?: number | undefined;
 }>, {
     issues: {
         id: string;
@@ -82,11 +104,15 @@ export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }[];
     verdict: "needs_revision" | "approved" | "approved_with_notes" | "blocked";
     summary: string;
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
+    quote_compliance_warning?: boolean | undefined;
+    unverified_count?: number | undefined;
 }, {
     issues: {
         id: string;
@@ -95,11 +121,15 @@ export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }[];
     verdict: "needs_revision" | "approved" | "approved_with_notes" | "blocked";
     summary: string;
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
+    quote_compliance_warning?: boolean | undefined;
+    unverified_count?: number | undefined;
 }>;
 export declare const AlternativeSchema: z.ZodObject<{
     approach: z.ZodString;
@@ -121,6 +151,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
         title: z.ZodString;
         description: z.ZodString;
         suggestion: z.ZodString;
+        quoted_text: z.ZodOptional<z.ZodString>;
+        verified: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -128,6 +160,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }, {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -135,6 +169,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }>, "many">;
     confidence: z.ZodEnum<["high", "medium", "low"]>;
     approach_assessment: z.ZodString;
@@ -151,6 +187,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
     assumptions: z.ZodArray<z.ZodString, "many">;
     fallback_used: z.ZodOptional<z.ZodBoolean>;
     missing_phase_fields: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
+    unverified_count: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     issues: {
         id: string;
@@ -159,6 +197,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }[];
     verdict: "needs_revision" | "blocked";
     summary: string;
@@ -171,6 +211,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
     assumptions: string[];
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
+    quote_compliance_warning?: boolean | undefined;
+    unverified_count?: number | undefined;
 }, {
     issues: {
         id: string;
@@ -179,6 +221,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }[];
     verdict: "needs_revision" | "blocked";
     summary: string;
@@ -191,6 +235,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
     assumptions: string[];
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
+    quote_compliance_warning?: boolean | undefined;
+    unverified_count?: number | undefined;
 }>;
 export declare const RiskEntrySchema: z.ZodObject<{
     id: z.ZodString;
@@ -227,6 +273,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
         title: z.ZodString;
         description: z.ZodString;
         suggestion: z.ZodString;
+        quoted_text: z.ZodOptional<z.ZodString>;
+        verified: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -234,6 +282,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }, {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -241,6 +291,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }>, "many">;
     risk_level: z.ZodEnum<["high", "medium", "low"]>;
     risks: z.ZodArray<z.ZodObject<{
@@ -270,6 +322,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
     }>, "many">;
     fallback_used: z.ZodOptional<z.ZodBoolean>;
     missing_phase_fields: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
+    unverified_count: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     issues: {
         id: string;
@@ -278,6 +332,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }[];
     verdict: "needs_revision" | "blocked";
     summary: string;
@@ -293,6 +349,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
     }[];
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
+    quote_compliance_warning?: boolean | undefined;
+    unverified_count?: number | undefined;
 }, {
     issues: {
         id: string;
@@ -301,6 +359,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
         title: string;
         description: string;
         suggestion: string;
+        quoted_text?: string | undefined;
+        verified?: boolean | undefined;
     }[];
     verdict: "needs_revision" | "blocked";
     summary: string;
@@ -316,6 +376,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
     }[];
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
+    quote_compliance_warning?: boolean | undefined;
+    unverified_count?: number | undefined;
 }>;
 export type FeedbackIssue = z.infer<typeof FeedbackIssueSchema>;
 export type ReviewFeedback = z.infer<typeof ReviewFeedbackSchema>;
