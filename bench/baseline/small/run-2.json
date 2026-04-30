@@ -1,0 +1,124 @@
+{
+  "commit": "ac41a58",
+  "timestamp": "2026-04-24T20:55:28.774Z",
+  "plan": "small",
+  "planPath": "bench/plans/small.md",
+  "models": {
+    "planner": "claude(claude-opus-4-6/high)",
+    "reviewer": "codex(gpt-5.3-codex/xhigh)"
+  },
+  "max_rounds": 10,
+  "outcome": "approved",
+  "error": null,
+  "rounds": 5,
+  "total_wall_ms": 743880,
+  "sum_round_wall_ms": 743484,
+  "total_prompt_chars": 63718,
+  "total_output_chars": 34747,
+  "total_attempts": 9,
+  "downgrades": 0,
+  "accepted": 9,
+  "rejected": 0,
+  "deferred": 1,
+  "by_round": [
+    {
+      "round": 1,
+      "role": "review",
+      "phase": "direction",
+      "duration_ms": 46542,
+      "attempts": 1,
+      "prompt_chars": 3988,
+      "output_chars": 2353,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 1,
+      "role": "revision",
+      "phase": "direction",
+      "duration_ms": 66940,
+      "attempts": 1,
+      "prompt_chars": 4673,
+      "output_chars": 3768,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 2,
+      "role": "review",
+      "phase": "risk",
+      "duration_ms": 126674,
+      "attempts": 1,
+      "prompt_chars": 6473,
+      "output_chars": 5787,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 2,
+      "role": "revision",
+      "phase": "risk",
+      "duration_ms": 163223,
+      "attempts": 1,
+      "prompt_chars": 7568,
+      "output_chars": 7293,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 3,
+      "role": "review",
+      "phase": "detail",
+      "duration_ms": 55627,
+      "attempts": 1,
+      "prompt_chars": 7265,
+      "output_chars": 1677,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 3,
+      "role": "revision",
+      "phase": "detail",
+      "duration_ms": 54742,
+      "attempts": 1,
+      "prompt_chars": 8431,
+      "output_chars": 6329,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 4,
+      "role": "review",
+      "phase": "detail",
+      "duration_ms": 105389,
+      "attempts": 1,
+      "prompt_chars": 8177,
+      "output_chars": 1136,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 4,
+      "role": "revision",
+      "phase": "detail",
+      "duration_ms": 41064,
+      "attempts": 1,
+      "prompt_chars": 8463,
+      "output_chars": 5945,
+      "ok": true,
+      "first_attempt_error": null
+    },
+    {
+      "round": 5,
+      "role": "review",
+      "phase": "detail",
+      "duration_ms": 83283,
+      "attempts": 1,
+      "prompt_chars": 8680,
+      "output_chars": 459,
+      "ok": true,
+      "first_attempt_error": null
+    }
+  ]
+}
