@@ -9,7 +9,6 @@ The CLI prints help with `--help` but there's no way to print the installed vers
 ## Steps
 
 - [ ] Add a `--version` flag to the commander program registration in `src/cli/index.ts`
-- [ ] Read the version from `package.json` at startup and pass it to `program.version()`
 - [ ] Update the CLI's top-level help to mention `--version`
 
 ## File References

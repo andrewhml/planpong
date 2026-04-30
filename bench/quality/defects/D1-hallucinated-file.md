@@ -8,7 +8,7 @@ The CLI prints help with `--help` but there's no way to print the installed vers
 
 ## Steps
 
-- [ ] Add a `--version` flag to the commander program registration in `src/cli/index.ts`
+- [ ] Add a `--version` flag to the commander program registration in `src/cli/idnex.ts`
 - [ ] Read the version from `package.json` at startup and pass it to `program.version()`
 - [ ] Update the CLI's top-level help to mention `--version`
 
@@ -16,7 +16,7 @@ The CLI prints help with `--help` but there's no way to print the installed vers
 
 | File | Change |
 |---|---|
-| `src/cli/index.ts` | Register version on the commander program |
+| `src/cli/idnex.ts` | Register version on the commander program |
 
 ## Verification Criteria
 
