@@ -842,8 +842,9 @@ export async function runReviewRound(
             structuredOutput,
           )
         : buildReviewPrompt(planContent, priorDecisions, phase, structuredOutput),
-    parseStructured: (output) => parseStructuredFeedbackForPhase(output, phase),
-    parseLegacy: (output) => parseFeedbackForPhase(output, phase),
+    parseStructured: (output) =>
+      parseStructuredFeedbackForPhase(output, phase, planContent),
+    parseLegacy: (output) => parseFeedbackForPhase(output, phase, planContent),
     roundLabel: `Round ${round} review`,
     metricsContext: {
       sessionId: session.id,

@@ -490,8 +490,8 @@ export async function runReviewRound(session, cwd, config, reviewerProvider) {
         buildPrompt: (structuredOutput) => isResumedReviewerSession
             ? buildIncrementalReviewPrompt(planDiff ?? planContent, priorDecisions, phase, structuredOutput)
             : buildReviewPrompt(planContent, priorDecisions, phase, structuredOutput),
-        parseStructured: (output) => parseStructuredFeedbackForPhase(output, phase),
-        parseLegacy: (output) => parseFeedbackForPhase(output, phase),
+        parseStructured: (output) => parseStructuredFeedbackForPhase(output, phase, planContent),
+        parseLegacy: (output) => parseFeedbackForPhase(output, phase, planContent),
         roundLabel: `Round ${round} review`,
         metricsContext: {
             sessionId: session.id,

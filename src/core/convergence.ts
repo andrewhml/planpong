@@ -15,6 +15,7 @@ import {
   type PlannerRevision,
 } from "../schemas/revision.js";
 import type { ReviewPhase } from "../prompts/reviewer.js";
+import { verifyFeedback, stripModelVerified } from "./verify-evidence.js";
 
 /**
  * Thrown when structured output produces text that is not valid JSON.
@@ -182,6 +183,7 @@ function stripNullProperties(value: unknown): unknown {
 export function parseStructuredFeedbackForPhase(
   content: string,
   phase: ReviewPhase,
+  planText: string = "",
 ): PhaseFeedback {
   let parsed: unknown;
   try {
@@ -211,14 +213,14 @@ export function parseStructuredFeedbackForPhase(
   }
 
   // Apply blocked rationale validation (same rules as legacy path)
-  const feedback = result.data as PhaseFeedback;
+  let feedback = result.data as PhaseFeedback;
   if (phase === "direction" && feedback.verdict === "blocked") {
     const direction = feedback as DirectionFeedback;
     if (!direction.approach_assessment?.trim()) {
       console.warn(
         "[planpong] Blocked verdict without approach_assessment rationale — coercing to needs_revision",
       );
-      return { ...direction, verdict: "needs_revision" as const };
+      feedback = { ...direction, verdict: "needs_revision" as const };
     }
   }
   if (phase === "risk" && feedback.verdict === "blocked") {
@@ -227,10 +229,16 @@ export function parseStructuredFeedbackForPhase(
       console.warn(
         "[planpong] Blocked verdict without risks rationale — coercing to needs_revision",
       );
-      return { ...risk, verdict: "needs_revision" as const };
+      feedback = { ...risk, verdict: "needs_revision" as const };
     }
   }
-  return feedback;
+
+  // Evidence verification — model-supplied `verified` is stripped, then
+  // each issue's `quoted_text` is checked against the plan. The verifier
+  // is fail-safe: an exception path produces `verified: false`, never an
+  // error that propagates here.
+  stripModelVerified(feedback.issues);
+  return verifyFeedback(feedback, planText).feedback;
 }
 
 /**
@@ -293,10 +301,19 @@ export function parseStructuredRevision(
 export function parseFeedbackForPhase(
   content: string,
   phase: ReviewPhase,
+  planText: string = "",
 ): PhaseFeedback {
   if (phase === "detail") {
-    return parseFeedback(content);
+    const detail = parseFeedback(content);
+    stripModelVerified(detail.issues);
+    return verifyFeedback(detail, planText).feedback;
   }
+
+  // Helper: strip model-supplied verified, run verifier, return annotated.
+  const verifyAndReturn = (fb: PhaseFeedback): PhaseFeedback => {
+    stripModelVerified(fb.issues);
+    return verifyFeedback(fb, planText).feedback;
+  };
 
   // Try phase-specific parser first
   try {
@@ -305,17 +322,17 @@ export function parseFeedbackForPhase(
       // Validate blocked rationale
       if (feedback.verdict === "blocked" && !feedback.approach_assessment?.trim()) {
         console.warn("[planpong] Blocked verdict without approach_assessment rationale — coercing to needs_revision");
-        return { ...feedback, verdict: "needs_revision" as const };
+        return verifyAndReturn({ ...feedback, verdict: "needs_revision" as const });
       }
-      return feedback;
+      return verifyAndReturn(feedback);
     } else {
       const feedback = parseRiskFeedback(content);
       // Validate blocked rationale
       if (feedback.verdict === "blocked" && (!feedback.risks || feedback.risks.length === 0)) {
         console.warn("[planpong] Blocked verdict without risks rationale — coercing to needs_revision");
-        return { ...feedback, verdict: "needs_revision" as const };
+        return verifyAndReturn({ ...feedback, verdict: "needs_revision" as const });
       }
-      return feedback;
+      return verifyAndReturn(feedback);
     }
   } catch {
     // Phase-specific parse failed — fall back to base schema
@@ -356,7 +373,7 @@ export function parseFeedbackForPhase(
           missing_phase_fields: missingFields,
         };
         (result as Record<string, unknown>).approach_assessment = assessment;
-        return result;
+        return verifyAndReturn(result);
       }
       console.warn("[planpong] Blocked verdict under fallback without recoverable rationale — coercing to needs_revision");
     } else {
@@ -370,7 +387,7 @@ export function parseFeedbackForPhase(
           missing_phase_fields: missingFields,
         };
         (result as Record<string, unknown>).risks = risks;
-        return result;
+        return verifyAndReturn(result);
       }
       console.warn("[planpong] Blocked verdict under fallback without recoverable risks rationale — coercing to needs_revision");
     }
@@ -378,12 +395,12 @@ export function parseFeedbackForPhase(
 
   // Verdict coercion: direction/risk cannot approve, only needs_revision or blocked
   const coercedVerdict = feedback.verdict === "blocked" ? "needs_revision" as const : "needs_revision" as const;
-  return {
+  return verifyAndReturn({
     ...feedback,
     verdict: coercedVerdict,
     fallback_used: true,
     missing_phase_fields: missingFields,
-  };
+  });
 }
 
 export function parseRevision(

@@ -62,12 +62,20 @@ export async function reviseHandler(input) {
     const result = await runRevisionRound(session, cwd, sessionConfig, plannerProvider);
     // Update status line in plan file (planner may have mangled it)
     const statusLine = writeStatusLineToPlan(session, cwd, sessionConfig, "Revision submitted");
+    // Count rejections whose rationale matches "unverified evidence".
+    // Free-text matching is intentionally lenient; the planner prompt
+    // suggests the exact phrase but accepts variants (the plan flags
+    // this in Limitations & Future Work — a structured enum is a
+    // follow-up).
+    const unverifiedRejected = result.revision.responses.filter((r) => r.action === "rejected" &&
+        /unverified\s+evidence/i.test(r.rationale ?? "")).length;
     const payload = {
         round: result.round,
         responses: result.revision.responses,
         accepted: result.accepted,
         rejected: result.rejected,
         deferred: result.deferred,
+        unverified_rejected: unverifiedRejected,
         plan_updated: result.planUpdated,
         status_line: statusLine,
     };

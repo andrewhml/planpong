@@ -8,6 +8,26 @@ export function getReviewPhase(round: number): ReviewPhase {
   return "detail";
 }
 
+/**
+ * Shared "cite evidence" instruction block. Every issue must include a
+ * verbatim ≤200-char `quoted_text` snippet that planpong verifies by
+ * grepping the plan markdown. Quotes that don't match are tagged
+ * `verified: false` and deprioritized by the planner — they're treated
+ * as likely hallucinations.
+ *
+ * Length and distinctiveness limits are enforced server-side; the prompt
+ * communicates them so the model produces compliant quotes on the first
+ * try.
+ */
+const CITE_EVIDENCE_BLOCK = `
+## Cite Evidence For Every Issue
+
+Every issue you raise MUST include a \`quoted_text\` field — a verbatim snippet copied from the plan that the issue refers to. This is how planpong verifies the issue actually corresponds to something in the plan rather than a misread.
+
+- Quote, do not paraphrase. The string must appear character-for-character (whitespace tolerant) somewhere in the plan markdown above.
+- Keep \`quoted_text\` between 10 and 200 characters. Pick the shortest distinctive snippet that anchors the issue.
+- If you cannot find a verbatim quote that supports the issue, the issue is probably a misread of the plan — drop it.`;
+
 function buildDirectionReviewInstructions(): string {
   return `You are reviewing an implementation plan at a HIGH LEVEL. Focus on direction, not details.
 
@@ -34,7 +54,8 @@ Assign severity based on directional impact:
 Verdict rules:
 - Use "needs_revision" when there are issues to address (this is the normal case).
 - Use "blocked" ONLY when the plan is fundamentally non-viable due to hard external constraints — e.g., depends on a deprecated/unavailable API, violates an organizational policy, or requires resources that don't exist. Do NOT use "blocked" for fixable design issues.
-- You CANNOT approve in this round. Direction review always produces "needs_revision" or "blocked".`;
+- You CANNOT approve in this round. Direction review always produces "needs_revision" or "blocked".
+${CITE_EVIDENCE_BLOCK}`;
 }
 
 function buildRiskReviewInstructions(priorDecisions: string | null): string {
@@ -69,6 +90,7 @@ Verdict rules:
 - Use "needs_revision" when there are issues to address (this is the normal case).
 - Use "blocked" ONLY when unmitigable risks make the plan non-viable — e.g., a hard dependency is unavailable, a critical external system is unreliable with no workaround. Do NOT use "blocked" for risks that can be mitigated with plan changes.
 - You CANNOT approve in this round. Risk review always produces "needs_revision" or "blocked".
+${CITE_EVIDENCE_BLOCK}
 ${priorBlock}`;
 }
 
@@ -92,6 +114,7 @@ The plan's overall direction has already been validated. Focus on implementation
 - Deferred items from prior rounds are acknowledged and do not block approval.
 - If the plan is solid with only minor informational notes, use "approved_with_notes" (all issues must be P3).
 - If you approve with "approved_with_notes", do NOT include any P1 or P2 issues.
+${CITE_EVIDENCE_BLOCK}
 ${priorBlock}`;
 }
 
@@ -118,7 +141,8 @@ function buildDirectionJsonSchema(): string {
       "section": "Which part of the plan this relates to",
       "title": "One-line summary",
       "description": "Detailed explanation",
-      "suggestion": "Recommended fix"
+      "suggestion": "Recommended fix",
+      "quoted_text": "Verbatim ≤200-char snippet from the plan above"
     }
   ]
 }
@@ -154,7 +178,8 @@ function buildRiskJsonSchema(): string {
       "section": "Which part of the plan this relates to",
       "title": "One-line summary",
       "description": "Detailed explanation",
-      "suggestion": "Recommended fix"
+      "suggestion": "Recommended fix",
+      "quoted_text": "Verbatim ≤200-char snippet from the plan above"
     }
   ]
 }
@@ -180,7 +205,8 @@ function buildDetailJsonSchema(): string {
       "section": "Which part of the plan this relates to",
       "title": "One-line summary",
       "description": "Detailed explanation",
-      "suggestion": "Recommended fix"
+      "suggestion": "Recommended fix",
+      "quoted_text": "Verbatim ≤200-char snippet from the plan above"
     }
   ]
 }

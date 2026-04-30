@@ -6,6 +6,16 @@ export const FeedbackIssueSchema = z.object({
     title: z.string(),
     description: z.string(),
     suggestion: z.string(),
+    // A verbatim ≤200-char snippet from the plan that the issue refers to.
+    // Optional during phased rollout — issues without it are tagged
+    // `verified: false` rather than rejected. No length constraint at the
+    // Zod level: ZodValidationError is terminal in this system, so length
+    // enforcement happens in src/core/verify-evidence.ts which marks
+    // non-compliant quotes as unverified instead of throwing.
+    quoted_text: z.string().optional(),
+    // Set by planpong post-parse via the verifier. Always stripped from
+    // model output before verification — the verifier is the sole authority.
+    verified: z.boolean().optional(),
 });
 // Base verdict enum includes `blocked` so fallback parsing can accept it
 // from direction/risk phases when phase-specific parsing fails.
@@ -22,6 +32,12 @@ export const ReviewFeedbackSchema = z
     // Fallback observability — set by parseFeedbackForPhase when fallback is used
     fallback_used: z.boolean().optional(),
     missing_phase_fields: z.array(z.string()).optional(),
+    // Evidence-verification observability — populated post-parse by the
+    // verifier in verify-evidence.ts. `quote_compliance_warning` flips true
+    // when >50% of issues lack `quoted_text`. `unverified_count` is the
+    // total number of issues with `verified: false` after verification.
+    quote_compliance_warning: z.boolean().optional(),
+    unverified_count: z.number().int().nonnegative().optional(),
 })
     .refine((data) => {
     if (data.verdict === "approved_with_notes") {
@@ -46,6 +62,8 @@ export const DirectionFeedbackSchema = z.object({
     assumptions: z.array(z.string()),
     fallback_used: z.boolean().optional(),
     missing_phase_fields: z.array(z.string()).optional(),
+    quote_compliance_warning: z.boolean().optional(),
+    unverified_count: z.number().int().nonnegative().optional(),
 });
 // --- Risk phase schema ---
 export const RiskEntrySchema = z.object({
@@ -71,5 +89,7 @@ export const RiskFeedbackSchema = z.object({
     risks: z.array(RiskEntrySchema),
     fallback_used: z.boolean().optional(),
     missing_phase_fields: z.array(z.string()).optional(),
+    quote_compliance_warning: z.boolean().optional(),
+    unverified_count: z.number().int().nonnegative().optional(),
 });
 //# sourceMappingURL=feedback.js.map

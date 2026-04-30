@@ -89,6 +89,15 @@ export async function getFeedbackHandler(input) {
     if (result.timing) {
         response.timing = result.timing;
     }
+    // Evidence-verification telemetry: surface the post-parse verifier's
+    // counts so consumers can spot reviewer hallucinations and sustained
+    // quote-compliance noncompliance without inspecting individual issues.
+    if (result.feedback.unverified_count !== undefined) {
+        response.unverified_count = result.feedback.unverified_count;
+    }
+    if (result.feedback.quote_compliance_warning) {
+        response.quote_compliance_warning = true;
+    }
     // Phase-specific lean fields for status line consumption
     if (result.phaseExtras.is_blocked) {
         response.is_blocked = true;

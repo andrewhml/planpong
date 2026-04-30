@@ -32,7 +32,7 @@ export declare function parseFeedback(content: string): ReviewFeedback;
  * - `StructuredOutputParseError` if JSON.parse fails (downgrade-eligible)
  * - `ZodValidationError` if Zod validation fails (terminal)
  */
-export declare function parseStructuredFeedbackForPhase(content: string, phase: ReviewPhase): PhaseFeedback;
+export declare function parseStructuredFeedbackForPhase(content: string, phase: ReviewPhase, planText?: string): PhaseFeedback;
 /**
  * Parse structured-output revision (planner response). Same contract as
  * `parseStructuredFeedbackForPhase`: throws `StructuredOutputParseError`
@@ -65,6 +65,6 @@ export declare function parseStructuredRevision(content: string, shape?: Revisio
  * provider does not support structured output, or as a fallback when
  * structured output fails.
  */
-export declare function parseFeedbackForPhase(content: string, phase: ReviewPhase): PhaseFeedback;
+export declare function parseFeedbackForPhase(content: string, phase: ReviewPhase, planText?: string): PhaseFeedback;
 export declare function parseRevision(content: string, shape?: RevisionShape): PlannerRevision;
 export declare function isConverged(feedback: PhaseFeedback): boolean;

@@ -173,6 +173,9 @@ describe("Contract tests — JSON Schema and Zod agree on structural subset", ()
           title: "test",
           description: "test",
           suggestion: "test",
+          // OpenAI-strict requires every property present; quoted_text is
+          // optional in Zod, so it's nullable in the strict schema.
+          quoted_text: null,
         },
       ],
     };

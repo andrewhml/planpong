@@ -676,3 +676,109 @@ describe("parseStructuredRevision", () => {
     expect(result.updated_plan).toBe(rev.updated_plan);
   });
 });
+
+// --- Evidence verification integration ---
+
+describe("Evidence verification — parser pipeline", () => {
+  const PLAN = `# Sample Plan
+
+## Steps
+
+- [ ] Add a --version flag to the commander program registration
+- [ ] Read the version from package.json at startup`;
+
+  function detailFb(
+    issues: Array<{
+      id: string;
+      quoted_text?: string;
+      verified?: boolean;
+    }>,
+  ) {
+    return {
+      verdict: "needs_revision",
+      summary: "test",
+      issues: issues.map((i) => ({
+        id: i.id,
+        severity: "P2",
+        section: "Steps",
+        title: "x",
+        description: "y",
+        suggestion: "z",
+        ...(i.quoted_text !== undefined ? { quoted_text: i.quoted_text } : {}),
+        ...(i.verified !== undefined ? { verified: i.verified } : {}),
+      })),
+    };
+  }
+
+  it("parseStructuredFeedbackForPhase verifies quoted_text per issue", () => {
+    const fb = detailFb([
+      { id: "F1", quoted_text: "Add a --version flag to the commander" },
+      { id: "F2", quoted_text: "this string is not in the plan at all" },
+    ]);
+    const result = parseStructuredFeedbackForPhase(
+      JSON.stringify(fb),
+      "detail",
+      PLAN,
+    );
+    expect(result.issues[0]?.verified).toBe(true);
+    expect(result.issues[1]?.verified).toBe(false);
+    expect(result.unverified_count).toBe(1);
+  });
+
+  it("parseStructuredFeedbackForPhase strips model-supplied verified=true", () => {
+    // Model claims verified=true on a quote that does not exist in the plan.
+    // Verifier must override.
+    const fb = detailFb([
+      {
+        id: "F1",
+        quoted_text: "this string is not in the plan",
+        verified: true,
+      },
+    ]);
+    const result = parseStructuredFeedbackForPhase(
+      JSON.stringify(fb),
+      "detail",
+      PLAN,
+    );
+    expect(result.issues[0]?.verified).toBe(false);
+  });
+
+  it("parseStructuredFeedbackForPhase sets quote_compliance_warning when >50% missing", () => {
+    const fb = detailFb([
+      { id: "F1", quoted_text: "Add a --version flag" }, // too short — fails distinctiveness
+      { id: "F2" }, // missing
+      { id: "F3" }, // missing
+    ]);
+    const result = parseStructuredFeedbackForPhase(
+      JSON.stringify(fb),
+      "detail",
+      PLAN,
+    );
+    expect(result.quote_compliance_warning).toBe(true);
+  });
+
+  it("parseFeedbackForPhase (legacy) verifies quoted_text per issue", () => {
+    const fb = detailFb([
+      {
+        id: "F1",
+        quoted_text: "Read the version from package.json at startup",
+      },
+      { id: "F2", quoted_text: "missing in plan entirely" },
+    ]);
+    const wrapped = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
+    const result = parseFeedbackForPhase(wrapped, "detail", PLAN);
+    expect(result.issues[0]?.verified).toBe(true);
+    expect(result.issues[1]?.verified).toBe(false);
+    expect(result.unverified_count).toBe(1);
+  });
+
+  it("parsers default planText='' marking everything unverified — backwards compat", () => {
+    const fb = detailFb([{ id: "F1", quoted_text: "any string" }]);
+    const result = parseStructuredFeedbackForPhase(
+      JSON.stringify(fb),
+      "detail",
+    );
+    expect(result.issues[0]?.verified).toBe(false);
+    expect(result.unverified_count).toBe(1);
+  });
+});
