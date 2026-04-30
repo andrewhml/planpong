@@ -74,6 +74,7 @@ function buildDetailReviewInstructions(priorDecisions) {
 
 The plan's overall direction has already been validated. Focus on implementation completeness and correctness.
 
+- When the plan references files, function names, exports, imports, configs, or APIs, VERIFY them against the codebase using your tools (Read, Grep, Glob, Bash). A plan that references \`src/foo/bar.ts\` should have a corresponding file; a plan that calls \`someLib.thing()\` should match the library's actual API. Flag verifiable mismatches as P1 (would break implementation) — these are the issues only an independent reviewer catches.
 - Only flag issues you have concrete evidence for. Cite the plan section.
 - Assign severity honestly:
   - P1 = blocks implementation or causes failure
