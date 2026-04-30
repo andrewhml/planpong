@@ -4,6 +4,7 @@ import {
   readSessionState,
   readRoundFeedback,
   readRoundResponse,
+  readRoundMetrics,
 } from "../../core/session.js";
 import {
   formatTrajectory,
@@ -50,6 +51,11 @@ export function registerStatus(server: McpServer): void {
         accepted?: number;
         rejected?: number;
         deferred?: number;
+        revision_mode?: "edits" | "full";
+        edits_applied?: number;
+        edits_failed?: number;
+        edits_recovered?: number;
+        retry_invoked?: boolean;
       }> = [];
 
       const severities: Array<{ P1: number; P2: number; P3: number }> = [];
@@ -81,6 +87,21 @@ export function registerStatus(server: McpServer): void {
           roundInfo.accepted = accepted;
           roundInfo.rejected = rejected;
           roundInfo.deferred = deferred;
+        }
+
+        const revMetrics = readRoundMetrics(cwd, session.id, r, "revision");
+        if (revMetrics?.revision_mode) {
+          roundInfo.revision_mode = revMetrics.revision_mode;
+          if (revMetrics.revision_mode === "edits") {
+            if (revMetrics.edits_applied != null)
+              roundInfo.edits_applied = revMetrics.edits_applied;
+            if (revMetrics.edits_failed != null)
+              roundInfo.edits_failed = revMetrics.edits_failed;
+            if (revMetrics.edits_recovered != null)
+              roundInfo.edits_recovered = revMetrics.edits_recovered;
+            if (revMetrics.retry_invoked != null)
+              roundInfo.retry_invoked = revMetrics.retry_invoked;
+          }
         }
 
         rounds.push(roundInfo);

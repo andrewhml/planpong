@@ -68,6 +68,9 @@ export function loadConfig(options) {
             ? !overrides.autonomous
             : (fileConfig.human_in_loop ??
                 DEFAULT_CONFIG.human_in_loop),
+        revision_mode: overrides.revisionMode ??
+            fileConfig.revision_mode ??
+            DEFAULT_CONFIG.revision_mode,
     };
     return PlanpongConfigSchema.parse(merged);
 }

@@ -1,9 +1,10 @@
 import type { Provider } from "../providers/types.js";
 import type { PlanpongConfig, ProviderConfig } from "../schemas/config.js";
 import type { PhaseFeedback } from "../schemas/feedback.js";
-import type { PlannerRevision } from "../schemas/revision.js";
+import { type PlannerRevision } from "../schemas/revision.js";
 import { getReviewPhase } from "../prompts/reviewer.js";
 import type { Session } from "../schemas/session.js";
+import { type TimingSummary } from "../schemas/metrics.js";
 export interface RoundSeverity {
     P1: number;
     P2: number;
@@ -22,6 +23,16 @@ export interface ReviewRoundResult {
     severity: RoundSeverity;
     converged: boolean;
     phaseExtras: PhaseExtras;
+    timing?: TimingSummary;
+}
+export interface RevisionEditTelemetry {
+    revision_mode: "full" | "edits";
+    edits_attempted: number | null;
+    edits_applied: number | null;
+    edits_failed: number | null;
+    edits_retried: number | null;
+    edits_recovered: number | null;
+    retry_invoked: boolean;
 }
 export interface RevisionRoundResult {
     round: number;
@@ -30,6 +41,8 @@ export interface RevisionRoundResult {
     rejected: number;
     deferred: number;
     planUpdated: boolean;
+    timing?: TimingSummary;
+    edits?: RevisionEditTelemetry;
 }
 export interface SessionInit {
     session: Session;

@@ -10,6 +10,8 @@ import {
 } from "../schemas/feedback.js";
 import {
   PlannerRevisionSchema,
+  DirectionRevisionSchema,
+  EditsRevisionSchema,
   type PlannerRevision,
 } from "../schemas/revision.js";
 import type { ReviewPhase } from "../prompts/reviewer.js";
@@ -236,7 +238,27 @@ export function parseStructuredFeedbackForPhase(
  * `parseStructuredFeedbackForPhase`: throws `StructuredOutputParseError`
  * for JSON failures and `ZodValidationError` for Zod failures.
  */
-export function parseStructuredRevision(content: string): PlannerRevision {
+export type RevisionShape = "full" | "edits";
+
+/**
+ * Phase-aware structured-output revision parser.
+ *
+ * - `shape: "full"` (direction phase or `revision_mode: "full"` config):
+ *   accepts only `{ responses, updated_plan }`. Edits payloads are rejected.
+ * - `shape: "edits"` (risk + detail with `revision_mode: "edits"`): accepts
+ *   only `{ responses, edits }`. `updated_plan` payloads are rejected.
+ *
+ * Strict-mode `.strict()` on the Zod schemas already rejects extra fields,
+ * so a payload mixing both shapes fails validation. No silent normalization.
+ *
+ * Throws `StructuredOutputParseError` for JSON failures (downgrade-eligible)
+ * and `ZodValidationError` for shape failures (terminal — the model violated
+ * the schema).
+ */
+export function parseStructuredRevision(
+  content: string,
+  shape: RevisionShape = "full",
+): PlannerRevision {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -246,10 +268,12 @@ export function parseStructuredRevision(content: string): PlannerRevision {
     );
   }
   parsed = stripNullProperties(parsed);
-  const result = PlannerRevisionSchema.safeParse(parsed);
+  const schema =
+    shape === "edits" ? EditsRevisionSchema : DirectionRevisionSchema;
+  const result = schema.safeParse(parsed);
   if (!result.success) {
     throw new ZodValidationError(
-      `Structured output failed Zod validation for revision: ${result.error.message}`,
+      `Structured output failed Zod validation for ${shape} revision: ${result.error.message}`,
       result.error,
     );
   }
@@ -362,7 +386,10 @@ export function parseFeedbackForPhase(
   };
 }
 
-export function parseRevision(content: string): PlannerRevision {
+export function parseRevision(
+  content: string,
+  shape: RevisionShape = "full",
+): PlannerRevision {
   const json = extractJSON(content, "planpong-revision");
   if (!json) {
     throw new Error(
@@ -377,7 +404,9 @@ export function parseRevision(content: string): PlannerRevision {
     throw new Error(`Invalid JSON in planner output:\n${json.slice(0, 200)}`);
   }
 
-  return PlannerRevisionSchema.parse(parsed);
+  const schema =
+    shape === "edits" ? EditsRevisionSchema : DirectionRevisionSchema;
+  return schema.parse(parsed);
 }
 
 export function isConverged(feedback: PhaseFeedback): boolean {

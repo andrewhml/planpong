@@ -51,6 +51,7 @@ export interface LoadConfigOptions {
     plansDir: string;
     maxRounds: number;
     autonomous: boolean;
+    revisionMode: "edits" | "full";
   }>;
 }
 
@@ -101,6 +102,10 @@ export function loadConfig(options: LoadConfigOptions): PlanpongConfig {
         ? !overrides.autonomous
         : ((fileConfig.human_in_loop as boolean | undefined) ??
           DEFAULT_CONFIG.human_in_loop),
+    revision_mode:
+      overrides.revisionMode ??
+      (fileConfig.revision_mode as "edits" | "full" | undefined) ??
+      DEFAULT_CONFIG.revision_mode,
   };
 
   return PlanpongConfigSchema.parse(merged);

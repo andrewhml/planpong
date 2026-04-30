@@ -1,10 +1,14 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Session } from "../schemas/session.js";
 import type { ReviewFeedback, PhaseFeedback } from "../schemas/feedback.js";
 import type { PlannerRevision } from "../schemas/revision.js";
 import type { ProviderConfig } from "../schemas/config.js";
+import {
+  RoundMetricsSchema,
+  type RoundMetrics,
+} from "../schemas/metrics.js";
 
 const SESSIONS_DIR = ".planpong/sessions";
 
@@ -20,6 +24,11 @@ export function createSession(
   planHash: string,
 ): Session {
   const id = randomBytes(6).toString("hex");
+  // Pre-generate a UUID for reviewer-session continuity. Used directly by
+  // claude (which accepts external UUIDs); for codex this is a placeholder
+  // that gets overwritten after the first invocation with the captured
+  // thread_id from codex's --json event stream.
+  const reviewerSessionId = randomUUID();
   const session: Session = {
     id,
     repoRoot: resolve(repoRoot),
@@ -31,6 +40,7 @@ export function createSession(
     currentRound: 0,
     startedAt: new Date().toISOString(),
     planHash,
+    reviewerSessionId,
   };
 
   const dir = getSessionDir(repoRoot, id);
@@ -105,6 +115,35 @@ export function readRoundResponse(
   return JSON.parse(readFileSync(path, "utf-8")) as PlannerRevision;
 }
 
+/**
+ * Persist a snapshot of the plan content as it was at the start of a given
+ * round. Used to compute "what changed since the model last saw it" diffs
+ * for resumed-session prompts so the reviewer doesn't have to re-load the
+ * full plan on round 2+.
+ */
+export function writeRoundPlanSnapshot(
+  repoRoot: string,
+  sessionId: string,
+  round: number,
+  planContent: string,
+): void {
+  const dir = getSessionDir(repoRoot, sessionId);
+  writeFileSync(join(dir, `round-${round}-plan.md`), planContent);
+}
+
+export function readRoundPlanSnapshot(
+  repoRoot: string,
+  sessionId: string,
+  round: number,
+): string | null {
+  const path = join(
+    getSessionDir(repoRoot, sessionId),
+    `round-${round}-plan.md`,
+  );
+  if (!existsSync(path)) return null;
+  return readFileSync(path, "utf-8");
+}
+
 export function writeInitialPlan(
   repoRoot: string,
   sessionId: string,
@@ -121,6 +160,51 @@ export function readInitialPlan(
   const path = join(getSessionDir(repoRoot, sessionId), "initial-plan.md");
   if (!existsSync(path)) return null;
   return readFileSync(path, "utf-8");
+}
+
+export function writeRoundMetrics(
+  repoRoot: string,
+  sessionId: string,
+  round: number,
+  role: "review" | "revision",
+  metrics: RoundMetrics,
+): void {
+  try {
+    const dir = getSessionDir(repoRoot, sessionId);
+    writeFileSync(
+      join(dir, `round-${round}-${role}-metrics.json`),
+      JSON.stringify(metrics, null, 2),
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : String(error);
+    try {
+      process.stderr.write(
+        `[planpong] warn: failed to write metrics: ${message}\n`,
+      );
+    } catch {
+      // even stderr failed — there's nothing else we can do
+    }
+  }
+}
+
+export function readRoundMetrics(
+  repoRoot: string,
+  sessionId: string,
+  round: number,
+  role: "review" | "revision",
+): RoundMetrics | null {
+  try {
+    const path = join(
+      getSessionDir(repoRoot, sessionId),
+      `round-${round}-${role}-metrics.json`,
+    );
+    if (!existsSync(path)) return null;
+    const parsed = JSON.parse(readFileSync(path, "utf-8"));
+    return RoundMetricsSchema.parse(parsed);
+  } catch {
+    return null;
+  }
 }
 
 export function resolvePlanPath(session: Session): string {

@@ -4,7 +4,11 @@ import {
   RiskFeedbackSchema,
   ReviewFeedbackSchema,
 } from "./feedback.js";
-import { PlannerRevisionSchema } from "./revision.js";
+import {
+  PlannerRevisionSchema,
+  DirectionRevisionSchema,
+  EditsRevisionSchema,
+} from "./revision.js";
 import type { ReviewPhase } from "../prompts/reviewer.js";
 
 /**
@@ -162,6 +166,9 @@ export const RiskFeedbackJsonSchema = generate(RiskFeedbackSchema);
 export const ReviewFeedbackJsonSchema = generate(ReviewFeedbackSchema);
 export const PlannerRevisionJsonSchema = generate(PlannerRevisionSchema);
 
+const DirectionRevisionJsonSchema = generate(DirectionRevisionSchema);
+const EditsRevisionJsonSchema = generate(EditsRevisionSchema);
+
 /**
  * Get the JSON Schema appropriate for a given review phase.
  */
@@ -171,4 +178,25 @@ export function getFeedbackJsonSchemaForPhase(
   if (phase === "direction") return DirectionFeedbackJsonSchema;
   if (phase === "risk") return RiskFeedbackJsonSchema;
   return ReviewFeedbackJsonSchema;
+}
+
+/**
+ * Get the JSON Schema for a planner revision response, selecting the
+ * shape based on phase and the configured revision mode.
+ *
+ * - Direction phase always emits `updated_plan` (sweeping rewrites are
+ *   allowed in round 1).
+ * - Risk + detail phase with `revisionMode: "edits"` emits an `edits[]`
+ *   array — the planner cannot fall back to full output.
+ * - Risk + detail phase with `revisionMode: "full"` keeps the full-plan
+ *   shape (kill switch).
+ */
+export function getRevisionJsonSchema(
+  phase: ReviewPhase,
+  revisionMode: "edits" | "full",
+): Record<string, unknown> {
+  if (phase === "direction" || revisionMode === "full") {
+    return DirectionRevisionJsonSchema;
+  }
+  return EditsRevisionJsonSchema;
 }

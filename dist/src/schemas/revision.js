@@ -10,8 +10,41 @@ export const IssueResponseSchema = z.object({
     severity_dispute: SeverityDisputeSchema.optional(),
     rationale: z.string(),
 });
-export const PlannerRevisionSchema = z.object({
+// `before.length <= 2000` and `after.length <= 5000` are hard caps that prevent
+// the planner from "editing" the entire plan in one edit, which defeats the
+// point. Section scoping makes the unique-match constraint mean "unique within
+// section" rather than "unique within plan".
+export const ReplaceEditSchema = z.object({
+    section: z.string().min(1),
+    before: z.string().min(1).max(2000),
+    after: z.string().max(5000),
+});
+// Direction-phase revisions are intentionally allowed to be sweeping rewrites,
+// so they keep the full-plan output shape.
+export const DirectionRevisionSchema = z
+    .object({
     responses: z.array(IssueResponseSchema),
     updated_plan: z.string(),
-});
+})
+    .strict();
+// Risk + detail-phase revisions emit a structured edit list instead. The
+// applier replays edits server-side. No `updated_plan` field — `.strict()`
+// rejects payloads that try to provide one.
+export const EditsRevisionSchema = z
+    .object({
+    responses: z.array(IssueResponseSchema),
+    edits: z.array(ReplaceEditSchema),
+})
+    .strict();
+// Backward-compatible export — equals DirectionRevisionSchema.
+// Kept so existing imports of `PlannerRevisionSchema` (e.g., legacy
+// JSON-Schema generation) continue to compile while the codebase migrates
+// to phase-aware schemas.
+export const PlannerRevisionSchema = DirectionRevisionSchema;
+export function isEditsRevision(r) {
+    return "edits" in r;
+}
+export function isDirectionRevision(r) {
+    return "updated_plan" in r;
+}
 //# sourceMappingURL=revision.js.map

@@ -12,6 +12,7 @@ export interface LoadConfigOptions {
         plansDir: string;
         maxRounds: number;
         autonomous: boolean;
+        revisionMode: "edits" | "full";
     }>;
 }
 export declare function loadConfig(options: LoadConfigOptions): PlanpongConfig;

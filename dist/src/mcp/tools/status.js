@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { readSessionState, readRoundFeedback, readRoundResponse, } from "../../core/session.js";
+import { readSessionState, readRoundFeedback, readRoundResponse, readRoundMetrics, } from "../../core/session.js";
 import { formatTrajectory, severityFromFeedback, } from "../../core/operations.js";
 const inputSchema = {
     session_id: z.string().describe("Session ID to check"),
@@ -52,6 +52,20 @@ export function registerStatus(server) {
                 roundInfo.accepted = accepted;
                 roundInfo.rejected = rejected;
                 roundInfo.deferred = deferred;
+            }
+            const revMetrics = readRoundMetrics(cwd, session.id, r, "revision");
+            if (revMetrics?.revision_mode) {
+                roundInfo.revision_mode = revMetrics.revision_mode;
+                if (revMetrics.revision_mode === "edits") {
+                    if (revMetrics.edits_applied != null)
+                        roundInfo.edits_applied = revMetrics.edits_applied;
+                    if (revMetrics.edits_failed != null)
+                        roundInfo.edits_failed = revMetrics.edits_failed;
+                    if (revMetrics.edits_recovered != null)
+                        roundInfo.edits_recovered = revMetrics.edits_recovered;
+                    if (revMetrics.retry_invoked != null)
+                        roundInfo.retry_invoked = revMetrics.retry_invoked;
+                }
             }
             rounds.push(roundInfo);
         }
