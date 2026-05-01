@@ -27,7 +27,20 @@ export declare const FeedbackIssueSchema: z.ZodObject<{
     quoted_text?: string | undefined;
     verified?: boolean | undefined;
 }>;
-export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
+/**
+ * Base feedback schema for the detail phase. Includes the `blocked` verdict
+ * so fallback parsing can accept it from direction/risk phases when
+ * phase-specific parsing fails.
+ *
+ * **Production callers must NOT use `.parse()` / `.safeParse()` directly.**
+ * Always route through `parseFeedback` or `parseStructuredFeedbackForPhase`
+ * in `src/core/convergence.ts`. Those functions apply post-parse semantic
+ * coercions (e.g., `approved_with_notes` with non-P3 issues is downgraded
+ * to `needs_revision` rather than throwing). Calling the schema directly
+ * silently bypasses these coercions and reintroduces the terminal-Zod-error
+ * failure mode that the parser-side coercion is specifically there to avoid.
+ */
+export declare const ReviewFeedbackSchema: z.ZodObject<{
     verdict: z.ZodEnum<["needs_revision", "approved", "approved_with_notes", "blocked"]>;
     summary: z.ZodString;
     issues: z.ZodArray<z.ZodObject<{
@@ -63,40 +76,6 @@ export declare const ReviewFeedbackSchema: z.ZodEffects<z.ZodObject<{
     quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
     unverified_count: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
-    issues: {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }[];
-    verdict: "needs_revision" | "approved" | "approved_with_notes" | "blocked";
-    summary: string;
-    fallback_used?: boolean | undefined;
-    missing_phase_fields?: string[] | undefined;
-    quote_compliance_warning?: boolean | undefined;
-    unverified_count?: number | undefined;
-}, {
-    issues: {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }[];
-    verdict: "needs_revision" | "approved" | "approved_with_notes" | "blocked";
-    summary: string;
-    fallback_used?: boolean | undefined;
-    missing_phase_fields?: string[] | undefined;
-    quote_compliance_warning?: boolean | undefined;
-    unverified_count?: number | undefined;
-}>, {
     issues: {
         id: string;
         severity: "P1" | "P2" | "P3";

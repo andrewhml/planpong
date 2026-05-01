@@ -198,7 +198,7 @@ export function initReviewSession(planPath, cwd, config) {
     const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${formatProviderLabel(config.planner)} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
     planContent = updatePlanStatusLine(planContent, initialStatusLine);
     writeFileSync(planPath, planContent);
-    const session = createSession(cwd, relativePlanPath, config.planner, config.reviewer, hashFile(planPath));
+    const session = createSession(cwd, relativePlanPath, config.planner, config.reviewer, hashFile(planPath), config.planner_mode);
     session.initialLineCount = countLines(planContent);
     session.status = "in_review";
     writeInitialPlan(cwd, session.id, originalContent);
@@ -488,7 +488,7 @@ export async function runReviewRound(session, cwd, config, reviewerProvider) {
         },
         jsonSchema: getFeedbackJsonSchemaForPhase(phase),
         buildPrompt: (structuredOutput) => isResumedReviewerSession
-            ? buildIncrementalReviewPrompt(planDiff ?? planContent, priorDecisions, phase, structuredOutput)
+            ? buildIncrementalReviewPrompt(planDiff ?? planContent, planContent, priorDecisions, phase, structuredOutput)
             : buildReviewPrompt(planContent, priorDecisions, phase, structuredOutput),
         parseStructured: (output) => parseStructuredFeedbackForPhase(output, phase, planContent),
         parseLegacy: (output) => parseFeedbackForPhase(output, phase, planContent),
@@ -574,10 +574,11 @@ export async function runRevisionRound(session, cwd, config, plannerProvider) {
             role: "revision",
         },
     });
-    writeRoundResponse(cwd, session.id, round, revision);
     const timing = metrics ? summarizeTiming(metrics) : undefined;
     // Apply revision to disk. Two paths: full (today's behavior) or edits
-    // (apply edit list, retry failures, atomic write).
+    // (apply edit list, retry failures, atomic write). The full-mode branch
+    // also writes its own metrics file (with edit telemetry) before
+    // finalization; the edits branch writes metrics inside applyRevisionEdits.
     let editTelemetry;
     let finalRevision = revision;
     if (useEdits && isEditsRevision(revision)) {
@@ -618,30 +619,90 @@ export async function runRevisionRound(session, cwd, config, plannerProvider) {
     else {
         throw new Error(`runRevisionRound: revision shape mismatch — expected ${useEdits ? "edits" : "full"} but got ${"updated_plan" in revision ? "full" : "edits"}`);
     }
-    session.planHash = hashFile(planPath);
-    writeSessionState(cwd, session);
-    // Tally responses (use the possibly-downgraded responses from finalRevision).
-    let accepted = 0;
-    let rejected = 0;
-    let deferred = 0;
-    for (const resp of finalRevision.responses) {
-        if (resp.action === "accepted")
-            accepted++;
-        else if (resp.action === "rejected")
-            rejected++;
-        else if (resp.action === "deferred")
-            deferred++;
-    }
+    // Persist the (possibly-downgraded) finalRevision via the shared finalizer.
+    // Same path as planpong_record_revision so the two modes stay aligned.
+    const tally = finalizeRevision({
+        session,
+        cwd,
+        round,
+        revision: finalRevision,
+        planPath,
+    });
     return {
         round,
         revision: finalRevision,
-        accepted,
-        rejected,
-        deferred,
+        accepted: tally.accepted,
+        rejected: tally.rejected,
+        deferred: tally.deferred,
         planUpdated: true,
         timing,
         edits: editTelemetry,
     };
+}
+/**
+ * Persist the final revision artifacts and return the response tally.
+ * Shared by `runRevisionRound` (external mode) and
+ * `planpong_record_revision` (inline mode) so both paths produce identical
+ * on-disk shape.
+ *
+ * Write ordering (the contract):
+ *   1. `round-N-response.json` — the revision payload
+ *   2. plan hash — `session.planHash = hashFile(planPath)`
+ *   3. `session.json` — session state (commit point)
+ *
+ * Step 3 is the commit point. A crash before step 3 leaves a stale
+ * `round-N-response.json` and an unchanged `session.planHash`; a retry
+ * re-enters with the same round number and overwrites the response file
+ * (idempotent at this granularity).
+ *
+ * **Round advancement is NOT performed here.** `currentRound` is owned by
+ * the callers that drive the loop: `get-feedback.ts:63` for the MCP path
+ * (`session.currentRound++`) and `loop.ts` for the CLI path. Moving
+ * advancement into finalization would double-advance in MCP mode.
+ *
+ * Idempotency: if `round-N-response.json` already exists and its content
+ * matches the proposed revision, returns the existing tally without
+ * re-writing. Detects retries from upstream (e.g., a stale tool call
+ * after a successful finalization) without relying on round-number
+ * comparison — `currentRound` is owned elsewhere.
+ */
+export function finalizeRevision({ session, cwd, round, revision, planPath, }) {
+    // Idempotency check compares only `responses` rather than the whole
+    // revision payload. Reason: in inline mode, the revision's updated_plan
+    // captures the plan content as of finalize time, but the very next thing
+    // we do (in the caller) is rewrite the plan's status line — so a retry
+    // would read a slightly different plan file and produce a different
+    // payload even though the agent's intent is identical. Responses
+    // capture the agent's decisions; that's the right idempotency key.
+    const existing = readRoundResponse(cwd, session.id, round);
+    if (existing &&
+        JSON.stringify(existing.responses) === JSON.stringify(revision.responses)) {
+        return {
+            ...tallyResponses(existing.responses),
+            fresh: false,
+        };
+    }
+    writeRoundResponse(cwd, session.id, round, revision);
+    session.planHash = hashFile(planPath);
+    writeSessionState(cwd, session);
+    return {
+        ...tallyResponses(revision.responses),
+        fresh: true,
+    };
+}
+function tallyResponses(responses) {
+    let accepted = 0;
+    let rejected = 0;
+    let deferred = 0;
+    for (const r of responses) {
+        if (r.action === "accepted")
+            accepted++;
+        else if (r.action === "rejected")
+            rejected++;
+        else if (r.action === "deferred")
+            deferred++;
+    }
+    return { accepted, rejected, deferred };
 }
 /**
  * Apply an edits-mode revision: first-pass apply, targeted retry on failures,
@@ -877,6 +938,7 @@ function persistRevisionMetrics(args) {
             edits_retried: telemetry.edits_retried,
             edits_recovered: telemetry.edits_recovered,
             retry_invoked: telemetry.retry_invoked,
+            planner_mode: "external",
         };
         writeRoundMetrics(cwd, session.id, round, "revision", augmented);
     }

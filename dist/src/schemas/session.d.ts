@@ -37,6 +37,7 @@ export declare const SessionSchema: z.ZodObject<{
     initialLineCount: z.ZodOptional<z.ZodNumber>;
     reviewerSessionId: z.ZodOptional<z.ZodString>;
     reviewerSessionInitialized: z.ZodOptional<z.ZodBoolean>;
+    plannerMode: z.ZodDefault<z.ZodEnum<["inline", "external"]>>;
 }, "strip", z.ZodTypeAny, {
     id: string;
     status: "aborted" | "approved" | "blocked" | "planning" | "in_review";
@@ -50,6 +51,7 @@ export declare const SessionSchema: z.ZodObject<{
         model?: string | undefined;
         effort?: string | undefined;
     };
+    plannerMode: "external" | "inline";
     repoRoot: string;
     planPath: string;
     planPathAbsolute: string;
@@ -78,6 +80,7 @@ export declare const SessionSchema: z.ZodObject<{
     currentRound: number;
     startedAt: string;
     planHash: string;
+    plannerMode?: "external" | "inline" | undefined;
     initialLineCount?: number | undefined;
     reviewerSessionId?: string | undefined;
     reviewerSessionInitialized?: boolean | undefined;

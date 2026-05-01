@@ -47,6 +47,12 @@ const inputSchema = {
     .describe(
       "If true, pause after each round for user confirmation. Default: false (autonomous)",
     ),
+  planner_mode: z
+    .enum(["inline", "external"])
+    .optional()
+    .describe(
+      "Planner mode for this session. 'external' (default) routes revisions through planpong_revise + a planner provider. 'inline' routes through planpong_record_revision so the agent that invoked /pong-review acts as the planner. Sticky for the session lifetime.",
+    ),
 };
 
 export function registerStartReview(server: McpServer): void {
@@ -69,6 +75,7 @@ export function registerStartReview(server: McpServer): void {
           reviewerEffort: input.reviewer?.effort,
           maxRounds: input.max_rounds,
           autonomous: true,
+          plannerMode: input.planner_mode,
         },
       });
 
@@ -156,10 +163,12 @@ export function registerStartReview(server: McpServer): void {
               plan_path: planPath,
               plan_summary: planSummary,
               interactive: input.interactive ?? false,
+              planner_mode: session.plannerMode,
               config: {
                 planner: config.planner,
                 reviewer: config.reviewer,
                 max_rounds: config.max_rounds,
+                planner_mode: config.planner_mode,
               },
             }),
           },

@@ -81,7 +81,28 @@ export function parseFeedback(content: string): ReviewFeedback {
     throw new Error(`Invalid JSON in reviewer output:\n${json.slice(0, 200)}`);
   }
 
-  return ReviewFeedbackSchema.parse(parsed);
+  const validated = ReviewFeedbackSchema.parse(parsed);
+  return coerceApprovedWithNotes(validated);
+}
+
+/**
+ * Post-parse coercion for `approved_with_notes` verdicts paired with non-P3
+ * issues. Previously enforced as a Zod refinement which threw a terminal
+ * `ZodValidationError`. Moved here so semantically-recoverable violations
+ * downgrade to `needs_revision` with a warning rather than killing the round.
+ *
+ * Applied by every parser in this file. Direction/risk schemas can't produce
+ * `approved_with_notes` so the verdict-shape narrowing makes this a no-op
+ * for them when called on a `PhaseFeedback`.
+ */
+function coerceApprovedWithNotes<T extends PhaseFeedback>(feedback: T): T {
+  if (feedback.verdict !== "approved_with_notes") return feedback;
+  const hasNonP3 = feedback.issues.some((i) => i.severity !== "P3");
+  if (!hasNonP3) return feedback;
+  console.warn(
+    "[planpong] approved_with_notes with non-P3 issues — coercing to needs_revision",
+  );
+  return { ...feedback, verdict: "needs_revision" as const };
 }
 
 function parseDirectionFeedback(content: string): DirectionFeedback {
@@ -232,6 +253,12 @@ export function parseStructuredFeedbackForPhase(
       feedback = { ...risk, verdict: "needs_revision" as const };
     }
   }
+
+  // Coerce `approved_with_notes` + non-P3 issues to `needs_revision`. The
+  // refinement that previously enforced this as a Zod check has been moved
+  // out of the schema so the violation produces a recoverable warning, not
+  // a terminal ZodValidationError.
+  feedback = coerceApprovedWithNotes(feedback);
 
   // Evidence verification — model-supplied `verified` is stripped, then
   // each issue's `quoted_text` is checked against the plan. The verifier

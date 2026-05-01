@@ -71,6 +71,9 @@ export function loadConfig(options) {
         revision_mode: overrides.revisionMode ??
             fileConfig.revision_mode ??
             DEFAULT_CONFIG.revision_mode,
+        planner_mode: overrides.plannerMode ??
+            fileConfig.planner_mode ??
+            DEFAULT_CONFIG.planner_mode,
     };
     return PlanpongConfigSchema.parse(merged);
 }

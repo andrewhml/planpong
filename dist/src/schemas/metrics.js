@@ -39,6 +39,12 @@ export const RoundMetricsSchema = z.object({
     edits_retried: z.number().int().nonnegative().nullable().optional(),
     edits_recovered: z.number().int().nonnegative().nullable().optional(),
     retry_invoked: z.boolean().nullable().optional(),
+    // Planner mode that produced this round's revision. `external` for
+    // provider-driven revisions; `inline` for agent-driven revisions via
+    // `planpong_record_revision`. Optional for back-compat with metrics
+    // files written before this field existed. Unused for review-role
+    // metrics.
+    planner_mode: z.enum(["inline", "external"]).optional(),
 });
 export function summarizeTiming(metrics) {
     return {

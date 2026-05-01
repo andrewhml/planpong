@@ -52,6 +52,7 @@ export interface LoadConfigOptions {
     maxRounds: number;
     autonomous: boolean;
     revisionMode: "edits" | "full";
+    plannerMode: "inline" | "external";
   }>;
 }
 
@@ -106,6 +107,10 @@ export function loadConfig(options: LoadConfigOptions): PlanpongConfig {
       overrides.revisionMode ??
       (fileConfig.revision_mode as "edits" | "full" | undefined) ??
       DEFAULT_CONFIG.revision_mode,
+    planner_mode:
+      overrides.plannerMode ??
+      (fileConfig.planner_mode as "inline" | "external" | undefined) ??
+      DEFAULT_CONFIG.planner_mode,
   };
 
   return PlanpongConfigSchema.parse(merged);

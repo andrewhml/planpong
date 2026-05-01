@@ -6,7 +6,7 @@ const SESSIONS_DIR = ".planpong/sessions";
 function getSessionDir(repoRoot, sessionId) {
     return join(repoRoot, SESSIONS_DIR, sessionId);
 }
-export function createSession(repoRoot, planPath, planner, reviewer, planHash) {
+export function createSession(repoRoot, planPath, planner, reviewer, planHash, plannerMode = "external") {
     const id = randomBytes(6).toString("hex");
     // Pre-generate a UUID for reviewer-session continuity. Used directly by
     // claude (which accepts external UUIDs); for codex this is a placeholder
@@ -25,6 +25,7 @@ export function createSession(repoRoot, planPath, planner, reviewer, planHash) {
         startedAt: new Date().toISOString(),
         planHash,
         reviewerSessionId,
+        plannerMode,
     };
     const dir = getSessionDir(repoRoot, id);
     mkdirSync(dir, { recursive: true });
@@ -39,7 +40,15 @@ export function readSessionState(repoRoot, sessionId) {
     const path = join(getSessionDir(repoRoot, sessionId), "session.json");
     if (!existsSync(path))
         return null;
-    return JSON.parse(readFileSync(path, "utf-8"));
+    const parsed = JSON.parse(readFileSync(path, "utf-8"));
+    // Backward-compat normalization for sessions written before plannerMode
+    // existed. The Zod schema's .default() only fires under SessionSchema.parse(),
+    // which we deliberately skip here for performance. Old sessions that
+    // omit this field are treated as external — preserves prior behavior.
+    if (parsed.plannerMode === undefined) {
+        parsed.plannerMode = "external";
+    }
+    return parsed;
 }
 export function writeRoundFeedback(repoRoot, sessionId, round, feedback) {
     const dir = getSessionDir(repoRoot, sessionId);

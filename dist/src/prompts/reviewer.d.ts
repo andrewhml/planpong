@@ -5,15 +5,23 @@ export declare function getReviewPhase(round: number): ReviewPhase;
  * Incremental review prompt for resumed reviewer sessions.
  *
  * The reviewer has already seen the full plan (round 1) and produced its
- * own prior critique. Instead of re-sending the full plan markdown, we
- * send only what's changed since the model last saw it (a markdown diff)
- * plus the new phase instructions.
+ * own prior critique. Round 2+ prompts include both the diff (for change
+ * context) AND the full current plan text (for unambiguous quoting).
  *
- * Falls back to full-plan content if `planDiffOrContent` is the entire
- * plan rather than a diff (caller's choice — see operations.ts logic that
- * skips diffing on certain cases).
+ * **Why ship the full plan even when the model has it in session memory:**
+ * the cite-evidence block requires verbatim `quoted_text` matching against
+ * the *current* plan. Without an authoritative current-plan section, the
+ * reviewer must reconstruct from R1's full plan + every subsequent diff in
+ * its memory. That's fragile (context loss, truncation, attention to old
+ * lines). Sending the full plan eliminates the reconstruction job. Plans
+ * are typically < 10KB — the cost is marginal next to a wasted round from
+ * bad quotes.
+ *
+ * `planDiffOrContent` carries the diff (or, when the caller skips diffing,
+ * the full plan as a fallback). `currentPlanContent` is always the
+ * authoritative current plan.
  */
-export declare function buildIncrementalReviewPrompt(planDiffOrContent: string, priorDecisions: string | null, phase?: ReviewPhase, structuredOutput?: boolean): string;
+export declare function buildIncrementalReviewPrompt(planDiffOrContent: string, currentPlanContent: string, priorDecisions: string | null, phase?: ReviewPhase, structuredOutput?: boolean): string;
 export declare function buildReviewPrompt(planContent: string, priorDecisions: string | null, phase?: ReviewPhase, structuredOutput?: boolean): string;
 export declare function formatPriorDecisions(rounds: Array<{
     round: number;
