@@ -13,6 +13,7 @@ export interface LoadConfigOptions {
         maxRounds: number;
         autonomous: boolean;
         revisionMode: "edits" | "full";
+        plannerMode: "inline" | "external";
     }>;
 }
 export declare function loadConfig(options: LoadConfigOptions): PlanpongConfig;

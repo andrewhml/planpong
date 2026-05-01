@@ -6,7 +6,7 @@ export function getReviewPhase(round) {
     return "detail";
 }
 /**
- * Shared "cite evidence" instruction block. Every issue must include a
+ * Shared "cite evidence" instruction blocks. Every issue must include a
  * verbatim ≤200-char `quoted_text` snippet that planpong verifies by
  * grepping the plan markdown. Quotes that don't match are tagged
  * `verified: false` and deprioritized by the planner — they're treated
@@ -15,13 +15,33 @@ export function getReviewPhase(round) {
  * Length and distinctiveness limits are enforced server-side; the prompt
  * communicates them so the model produces compliant quotes on the first
  * try.
+ *
+ * Two variants:
+ * - `_FRESH` is appended by `buildReviewPrompt`. The full plan is in the
+ *   prompt above the cite block, so "appear in the plan markdown above"
+ *   is literally true.
+ * - `_INCREMENTAL` is appended by `buildIncrementalReviewPrompt`. That
+ *   prompt now sends both a diff (for change context) AND the full
+ *   current plan text (for quoting). Quoting from a diff line would leak
+ *   `+ ` / `- ` prefixes; quoting from session memory of an earlier round
+ *   risks pulling deleted lines. The incremental cite block points the
+ *   reviewer at the authoritative current-plan section.
  */
-const CITE_EVIDENCE_BLOCK = `
+const CITE_EVIDENCE_BLOCK_FRESH = `
 ## Cite Evidence For Every Issue
 
 Every issue you raise MUST include a \`quoted_text\` field — a verbatim snippet copied from the plan that the issue refers to. This is how planpong verifies the issue actually corresponds to something in the plan rather than a misread.
 
 - Quote, do not paraphrase. The string must appear character-for-character (whitespace tolerant) somewhere in the plan markdown above.
+- Keep \`quoted_text\` between 10 and 200 characters. Pick the shortest distinctive snippet that anchors the issue.
+- If you cannot find a verbatim quote that supports the issue, the issue is probably a misread of the plan — drop it.`;
+const CITE_EVIDENCE_BLOCK_INCREMENTAL = `
+## Cite Evidence For Every Issue
+
+Every issue you raise MUST include a \`quoted_text\` field — a verbatim snippet copied from the plan that the issue refers to. This is how planpong verifies the issue actually corresponds to something in the plan rather than a misread.
+
+- Quote, do not paraphrase. The string must appear character-for-character (whitespace tolerant) in the **current plan text provided below** (the "Current Plan" section, not the diff).
+- Do NOT quote diff prefix characters (\`+ \` / \`- \`). The diff is for change context only; quote from the Current Plan section.
 - Keep \`quoted_text\` between 10 and 200 characters. Pick the shortest distinctive snippet that anchors the issue.
 - If you cannot find a verbatim quote that supports the issue, the issue is probably a misread of the plan — drop it.`;
 function buildDirectionReviewInstructions() {
@@ -50,8 +70,7 @@ Assign severity based on directional impact:
 Verdict rules:
 - Use "needs_revision" when there are issues to address (this is the normal case).
 - Use "blocked" ONLY when the plan is fundamentally non-viable due to hard external constraints — e.g., depends on a deprecated/unavailable API, violates an organizational policy, or requires resources that don't exist. Do NOT use "blocked" for fixable design issues.
-- You CANNOT approve in this round. Direction review always produces "needs_revision" or "blocked".
-${CITE_EVIDENCE_BLOCK}`;
+- You CANNOT approve in this round. Direction review always produces "needs_revision" or "blocked".`;
 }
 function buildRiskReviewInstructions(priorDecisions) {
     const priorBlock = priorDecisions
@@ -84,7 +103,6 @@ Verdict rules:
 - Use "needs_revision" when there are issues to address (this is the normal case).
 - Use "blocked" ONLY when unmitigable risks make the plan non-viable — e.g., a hard dependency is unavailable, a critical external system is unreliable with no workaround. Do NOT use "blocked" for risks that can be mitigated with plan changes.
 - You CANNOT approve in this round. Risk review always produces "needs_revision" or "blocked".
-${CITE_EVIDENCE_BLOCK}
 ${priorBlock}`;
 }
 function buildDetailReviewInstructions(priorDecisions) {
@@ -106,7 +124,6 @@ The plan's overall direction has already been validated. Focus on implementation
 - Deferred items from prior rounds are acknowledged and do not block approval.
 - If the plan is solid with only minor informational notes, use "approved_with_notes" (all issues must be P3).
 - If you approve with "approved_with_notes", do NOT include any P1 or P2 issues.
-${CITE_EVIDENCE_BLOCK}
 ${priorBlock}`;
 }
 function buildDirectionJsonSchema() {
@@ -210,15 +227,23 @@ If the plan is approved with no issues, use:
  * Incremental review prompt for resumed reviewer sessions.
  *
  * The reviewer has already seen the full plan (round 1) and produced its
- * own prior critique. Instead of re-sending the full plan markdown, we
- * send only what's changed since the model last saw it (a markdown diff)
- * plus the new phase instructions.
+ * own prior critique. Round 2+ prompts include both the diff (for change
+ * context) AND the full current plan text (for unambiguous quoting).
  *
- * Falls back to full-plan content if `planDiffOrContent` is the entire
- * plan rather than a diff (caller's choice — see operations.ts logic that
- * skips diffing on certain cases).
+ * **Why ship the full plan even when the model has it in session memory:**
+ * the cite-evidence block requires verbatim `quoted_text` matching against
+ * the *current* plan. Without an authoritative current-plan section, the
+ * reviewer must reconstruct from R1's full plan + every subsequent diff in
+ * its memory. That's fragile (context loss, truncation, attention to old
+ * lines). Sending the full plan eliminates the reconstruction job. Plans
+ * are typically < 10KB — the cost is marginal next to a wasted round from
+ * bad quotes.
+ *
+ * `planDiffOrContent` carries the diff (or, when the caller skips diffing,
+ * the full plan as a fallback). `currentPlanContent` is always the
+ * authoritative current plan.
  */
-export function buildIncrementalReviewPrompt(planDiffOrContent, priorDecisions, phase = "detail", structuredOutput = false) {
+export function buildIncrementalReviewPrompt(planDiffOrContent, currentPlanContent, priorDecisions, phase = "detail", structuredOutput = false) {
     const instructions = phase === "direction"
         ? buildDirectionReviewInstructions()
         : phase === "risk"
@@ -230,12 +255,19 @@ export function buildIncrementalReviewPrompt(planDiffOrContent, priorDecisions, 
             ? buildRiskJsonSchema()
             : buildDetailJsonSchema();
     const isDiff = planDiffOrContent.startsWith("```diff");
+    // When the caller has a real diff: ship diff (for context) + current plan
+    // (for quoting). When `planDiffOrContent` is already the full plan
+    // (caller skipped diffing — e.g., R1 fallback path), don't duplicate.
     const planSection = isDiff
         ? `## Plan Changes Since Last Round
 
-The plan has been revised in response to your prior feedback. Below is what changed (the rest of the plan is unchanged from your context).
+The plan has been revised in response to your prior feedback. Below is what changed.
 
-${planDiffOrContent}`
+${planDiffOrContent}
+
+## Current Plan (full text — quote from this)
+
+${currentPlanContent}`
         : `## Plan to Review
 
 ${planDiffOrContent}`;
@@ -245,24 +277,26 @@ ${planSection}
 
 ## Your Task
 
-You are continuing the same review conversation. Your prior round's feedback and the plan you reviewed are in your context — use them.
+You are continuing the same review conversation. Your prior round's feedback is in your context — use it. The Current Plan section above is the authoritative source for quoting.
 
 Output ONLY a single JSON object conforming to the schema below. The first character of your response must be \`{\` and the last must be \`}\`. No prose. No markdown. No code fences. No preamble or explanation. No trailing text.
 
 Schema:
 
-${jsonSchema}`;
+${jsonSchema}
+${CITE_EVIDENCE_BLOCK_INCREMENTAL}`;
     }
     return `${instructions}
 ${planSection}
 
 ## Your Task
 
-You are continuing the same review conversation. Your prior round's feedback and the plan you reviewed are in your context — use them.
+You are continuing the same review conversation. Your prior round's feedback is in your context — use it. The Current Plan section above is the authoritative source for quoting.
 
 Respond with a JSON object wrapped in <planpong-feedback> tags conforming to:
 
 ${jsonSchema}
+${CITE_EVIDENCE_BLOCK_INCREMENTAL}
 
 IMPORTANT: Wrap your JSON response in <planpong-feedback>...</planpong-feedback> tags.
 
@@ -297,7 +331,8 @@ Output ONLY a single JSON object conforming to the schema below. The first chara
 
 Schema:
 
-${jsonSchema}`;
+${jsonSchema}
+${CITE_EVIDENCE_BLOCK_FRESH}`;
     }
     return `${instructions}
 ## Plan to Review
@@ -309,6 +344,7 @@ ${planContent}
 Respond with a JSON object wrapped in <planpong-feedback> tags. The JSON must match this schema:
 
 ${jsonSchema}
+${CITE_EVIDENCE_BLOCK_FRESH}
 
 IMPORTANT: Wrap your JSON response in <planpong-feedback>...</planpong-feedback> tags.
 

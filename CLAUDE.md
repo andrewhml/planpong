@@ -68,3 +68,11 @@ Optional `planpong.yaml` in project root. Defaults: claude (planner) + codex (re
 - Feature branches, squash-merge PRs
 - Commit messages: `feat:`, `fix:`, `chore:`, `docs:`, `ci:`
 - TypeScript strict mode
+
+## Planning workflow
+
+**Always run `/pong-review` on a plan before implementing it.** This is the dogfooding rule for this project — every plan in `docs/plans/` should go through planpong's own review loop before any code is written against it. The whole point of planpong is to catch plan-level defects early; skipping the review on planpong's *own* plans defeats the premise.
+
+- New plan drafted → run `/pong-review docs/plans/<plan>.md` → iterate to convergence → only then start implementation.
+- Use `/pong-interactive` instead when the plan is large or ambiguous and you want to approve each round step-by-step.
+- If a plan ships unreviewed (e.g., trivial fix, urgent hotfix), note that explicitly in the PR description so it's an intentional exception rather than an oversight.

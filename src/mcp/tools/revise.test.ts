@@ -143,4 +143,33 @@ describe("reviseHandler timing response contract", () => {
 
     expect(payload.unverified_rejected).toBe(0);
   });
+
+  it("returns isError + route hint when session is in inline planner mode", async () => {
+    // Don't go through createSession so we can flip plannerMode without
+    // touching its default arg. Mirror what the inline-mode flow looks like.
+    const session = createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      "hash",
+      "inline",
+    );
+    session.status = "in_review";
+    session.currentRound = 1;
+    writeSessionState(tmpDir, session);
+
+    const result = await reviseHandler({
+      session_id: session.id,
+      cwd: tmpDir,
+    });
+
+    expect(result.isError).toBe(true);
+    const errorBlock = result.content[0];
+    if (errorBlock.type !== "text") throw new Error("expected text block");
+    const payload = JSON.parse(errorBlock.text);
+    expect(payload.error).toMatch(/inline planner mode/);
+    expect(payload.error).toMatch(/planpong_record_revision/);
+    expect(payload.planner_mode).toBe("inline");
+  });
 });

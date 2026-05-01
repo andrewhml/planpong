@@ -85,6 +85,54 @@ export declare function runReviewRound(session: Session, cwd: string, config: Pl
  * Run a single revision round: send plan + feedback to the planner for revision.
  */
 export declare function runRevisionRound(session: Session, cwd: string, config: PlanpongConfig, plannerProvider: Provider): Promise<RevisionRoundResult>;
+export interface FinalizeRevisionInput {
+    session: Session;
+    cwd: string;
+    round: number;
+    revision: PlannerRevision;
+    /** Absolute path to the plan file. Used for the post-revision hash. */
+    planPath: string;
+}
+export interface FinalizeRevisionResult {
+    accepted: number;
+    rejected: number;
+    deferred: number;
+    /**
+     * `true` when this call wrote artifacts; `false` when an existing
+     * matching response file was detected and finalization was a no-op.
+     * Idempotent on retries — the first writer wins, subsequent identical
+     * calls return the existing tally without re-writing.
+     */
+    fresh: boolean;
+}
+/**
+ * Persist the final revision artifacts and return the response tally.
+ * Shared by `runRevisionRound` (external mode) and
+ * `planpong_record_revision` (inline mode) so both paths produce identical
+ * on-disk shape.
+ *
+ * Write ordering (the contract):
+ *   1. `round-N-response.json` — the revision payload
+ *   2. plan hash — `session.planHash = hashFile(planPath)`
+ *   3. `session.json` — session state (commit point)
+ *
+ * Step 3 is the commit point. A crash before step 3 leaves a stale
+ * `round-N-response.json` and an unchanged `session.planHash`; a retry
+ * re-enters with the same round number and overwrites the response file
+ * (idempotent at this granularity).
+ *
+ * **Round advancement is NOT performed here.** `currentRound` is owned by
+ * the callers that drive the loop: `get-feedback.ts:63` for the MCP path
+ * (`session.currentRound++`) and `loop.ts` for the CLI path. Moving
+ * advancement into finalization would double-advance in MCP mode.
+ *
+ * Idempotency: if `round-N-response.json` already exists and its content
+ * matches the proposed revision, returns the existing tally without
+ * re-writing. Detects retries from upstream (e.g., a stale tool call
+ * after a successful finalization) without relying on round-number
+ * comparison — `currentRound` is owned elsewhere.
+ */
+export declare function finalizeRevision({ session, cwd, round, revision, planPath, }: FinalizeRevisionInput): FinalizeRevisionResult;
 /**
  * Mark the session as approved and update the plan's status line.
  */

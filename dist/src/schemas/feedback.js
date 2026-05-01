@@ -17,10 +17,20 @@ export const FeedbackIssueSchema = z.object({
     // model output before verification — the verifier is the sole authority.
     verified: z.boolean().optional(),
 });
-// Base verdict enum includes `blocked` so fallback parsing can accept it
-// from direction/risk phases when phase-specific parsing fails.
-export const ReviewFeedbackSchema = z
-    .object({
+/**
+ * Base feedback schema for the detail phase. Includes the `blocked` verdict
+ * so fallback parsing can accept it from direction/risk phases when
+ * phase-specific parsing fails.
+ *
+ * **Production callers must NOT use `.parse()` / `.safeParse()` directly.**
+ * Always route through `parseFeedback` or `parseStructuredFeedbackForPhase`
+ * in `src/core/convergence.ts`. Those functions apply post-parse semantic
+ * coercions (e.g., `approved_with_notes` with non-P3 issues is downgraded
+ * to `needs_revision` rather than throwing). Calling the schema directly
+ * silently bypasses these coercions and reintroduces the terminal-Zod-error
+ * failure mode that the parser-side coercion is specifically there to avoid.
+ */
+export const ReviewFeedbackSchema = z.object({
     verdict: z.enum([
         "needs_revision",
         "approved",
@@ -38,14 +48,6 @@ export const ReviewFeedbackSchema = z
     // total number of issues with `verified: false` after verification.
     quote_compliance_warning: z.boolean().optional(),
     unverified_count: z.number().int().nonnegative().optional(),
-})
-    .refine((data) => {
-    if (data.verdict === "approved_with_notes") {
-        return data.issues.every((issue) => issue.severity === "P3");
-    }
-    return true;
-}, {
-    message: "approved_with_notes is only valid when all issues are P3. Either downgrade issues to P3 or change verdict to needs_revision.",
 });
 // --- Direction phase schema ---
 export const AlternativeSchema = z.object({

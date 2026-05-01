@@ -95,6 +95,7 @@ export declare const RoundMetricsSchema: z.ZodObject<{
     edits_retried: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
     edits_recovered: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
     retry_invoked: z.ZodOptional<z.ZodNullable<z.ZodBoolean>>;
+    planner_mode: z.ZodOptional<z.ZodEnum<["inline", "external"]>>;
 }, "strip", z.ZodTypeAny, {
     schema_version: 1;
     session_id: string;
@@ -119,6 +120,7 @@ export declare const RoundMetricsSchema: z.ZodObject<{
         error_exit_code: number | null;
     }[];
     revision_mode?: "edits" | "full" | null | undefined;
+    planner_mode?: "external" | "inline" | undefined;
     edits_attempted?: number | null | undefined;
     edits_applied?: number | null | undefined;
     edits_failed?: number | null | undefined;
@@ -149,6 +151,7 @@ export declare const RoundMetricsSchema: z.ZodObject<{
         error_exit_code: number | null;
     }[];
     revision_mode?: "edits" | "full" | null | undefined;
+    planner_mode?: "external" | "inline" | undefined;
     edits_attempted?: number | null | undefined;
     edits_applied?: number | null | undefined;
     edits_failed?: number | null | undefined;

@@ -728,3 +728,147 @@ describe("writeRoundMetrics / readRoundMetrics fail-open behavior", () => {
     ).toBeNull();
   });
 });
+
+// --- finalizeRevision shared helper ---
+
+describe("finalizeRevision", () => {
+  let tmpDir: string;
+  let planPath: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "planpong-finalize-"));
+    mkdirSync(join(tmpDir, "docs", "plans"), { recursive: true });
+    planPath = join(tmpDir, "docs", "plans", "plan.md");
+    writeFileSync(planPath, "# Plan\n\nbody\n");
+  });
+
+  afterEach(() => {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("persists response, updates plan hash, writes session state", async () => {
+    const ops = await import("./operations.js");
+    const session = sessionModule.createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      "stale-hash",
+    );
+    session.status = "in_review";
+    session.currentRound = 1;
+    sessionModule.writeSessionState(tmpDir, session);
+
+    const revision = {
+      responses: [
+        { issue_id: "F1", action: "accepted" as const, rationale: "ok" },
+        { issue_id: "F2", action: "rejected" as const, rationale: "no" },
+        { issue_id: "F3", action: "deferred" as const, rationale: "later" },
+      ],
+      updated_plan: "# Plan\n\nbody\n",
+    };
+
+    const result = ops.finalizeRevision({
+      session,
+      cwd: tmpDir,
+      round: 1,
+      revision,
+      planPath,
+    });
+
+    expect(result.accepted).toBe(1);
+    expect(result.rejected).toBe(1);
+    expect(result.deferred).toBe(1);
+    expect(result.fresh).toBe(true);
+
+    // Response file persisted.
+    const responsePath = join(
+      tmpDir,
+      ".planpong/sessions",
+      session.id,
+      "round-1-response.json",
+    );
+    expect(existsSync(responsePath)).toBe(true);
+
+    // Plan hash updated from the stale seed.
+    const reread = sessionModule.readSessionState(tmpDir, session.id);
+    expect(reread?.planHash).not.toBe("stale-hash");
+    expect(reread?.planHash).toBe(ops.hashFile(planPath));
+  });
+
+  it("does NOT advance currentRound", async () => {
+    const ops = await import("./operations.js");
+    const session = sessionModule.createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      ops.hashFile(planPath),
+    );
+    session.status = "in_review";
+    session.currentRound = 3;
+    sessionModule.writeSessionState(tmpDir, session);
+
+    ops.finalizeRevision({
+      session,
+      cwd: tmpDir,
+      round: 3,
+      revision: {
+        responses: [
+          { issue_id: "F1", action: "accepted" as const, rationale: "ok" },
+        ],
+        updated_plan: "# Plan\n\nbody\n",
+      },
+      planPath,
+    });
+
+    // Still 3. Advancement is the caller's responsibility (get-feedback.ts
+    // for MCP, loop.ts for CLI). Moving advancement here would
+    // double-advance in the MCP path.
+    expect(session.currentRound).toBe(3);
+    const reread = sessionModule.readSessionState(tmpDir, session.id);
+    expect(reread?.currentRound).toBe(3);
+  });
+
+  it("is idempotent on duplicate calls (matching responses)", async () => {
+    const ops = await import("./operations.js");
+    const session = sessionModule.createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      ops.hashFile(planPath),
+    );
+    session.status = "in_review";
+    session.currentRound = 1;
+    sessionModule.writeSessionState(tmpDir, session);
+
+    const revision = {
+      responses: [
+        { issue_id: "F1", action: "accepted" as const, rationale: "ok" },
+      ],
+      updated_plan: "# Plan\n\nbody\n",
+    };
+
+    const first = ops.finalizeRevision({
+      session,
+      cwd: tmpDir,
+      round: 1,
+      revision,
+      planPath,
+    });
+    expect(first.fresh).toBe(true);
+
+    const second = ops.finalizeRevision({
+      session,
+      cwd: tmpDir,
+      round: 1,
+      revision,
+      planPath,
+    });
+    // Detected the existing response file; returned the existing tally
+    // without re-writing artifacts. Tallies still consistent.
+    expect(second.fresh).toBe(false);
+    expect(second.accepted).toBe(1);
+  });
+});

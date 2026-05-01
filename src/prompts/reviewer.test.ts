@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getReviewPhase, buildReviewPrompt, formatPriorDecisions } from "./reviewer.js";
+import {
+  getReviewPhase,
+  buildReviewPrompt,
+  buildIncrementalReviewPrompt,
+  formatPriorDecisions,
+} from "./reviewer.js";
 
 // --- getReviewPhase ---
 
@@ -210,5 +215,73 @@ describe("formatPriorDecisions", () => {
     const result = formatPriorDecisions(rounds);
     expect(result).toContain("...");
     expect(result.length).toBeLessThan(200);
+  });
+});
+
+// --- Cite-evidence wording differs between fresh and incremental review ---
+
+describe("cite-evidence block — fresh vs incremental", () => {
+  const fullPlan = "# Plan\n\n## Steps\n- [ ] Add a --version flag";
+  const diff = "```diff\n  ## Steps\n- - [ ] old\n+ - [ ] new\n```";
+
+  it("buildReviewPrompt (fresh) instructs to quote from 'plan markdown above'", () => {
+    const prompt = buildReviewPrompt(fullPlan, null, "detail", true);
+    // Fresh wording — full plan is literally above the cite block.
+    expect(prompt).toContain("in the plan markdown above");
+    // Should NOT include the incremental-specific wording.
+    expect(prompt).not.toContain("Current Plan section");
+    expect(prompt).not.toContain("not the diff");
+  });
+
+  it("buildIncrementalReviewPrompt instructs to quote from the Current Plan section, warns against diff prefixes", () => {
+    const prompt = buildIncrementalReviewPrompt(
+      diff,
+      fullPlan,
+      null,
+      "detail",
+      true,
+    );
+    // Incremental wording — Current Plan is the authoritative source.
+    expect(prompt).toContain("Current Plan");
+    expect(prompt).toMatch(/quote from this/i);
+    expect(prompt).toContain("Do NOT quote diff prefix");
+    // Should NOT use the fresh wording (which would point at the diff).
+    expect(prompt).not.toContain("in the plan markdown above");
+  });
+
+  it("incremental prompt includes both diff (for context) and full plan text (for quoting)", () => {
+    const prompt = buildIncrementalReviewPrompt(
+      diff,
+      fullPlan,
+      null,
+      "detail",
+      true,
+    );
+    expect(prompt).toContain("Plan Changes Since Last Round");
+    expect(prompt).toContain(diff);
+    expect(prompt).toContain(fullPlan);
+  });
+
+  it("incremental prompt with non-diff content (R1 fallback) does not duplicate plan", () => {
+    // When the caller has no diff (e.g., R1 falls through to incremental
+    // because reviewerSessionInited is true but no prior snapshot exists),
+    // we use the "Plan to Review" fallback path — no separate Current Plan
+    // section, no duplication.
+    const prompt = buildIncrementalReviewPrompt(
+      fullPlan,
+      fullPlan,
+      null,
+      "detail",
+      true,
+    );
+    expect(prompt).toContain("Plan to Review");
+    expect(prompt).not.toContain("Current Plan (full text — quote from this)");
+  });
+
+  it("fresh prompt does not include duplicate plan text", () => {
+    const prompt = buildReviewPrompt(fullPlan, null, "detail", true);
+    // Plan appears exactly once.
+    const occurrences = prompt.split(fullPlan).length - 1;
+    expect(occurrences).toBe(1);
   });
 });

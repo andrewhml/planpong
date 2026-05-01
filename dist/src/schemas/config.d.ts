@@ -43,6 +43,7 @@ export declare const PlanpongConfigSchema: z.ZodObject<{
     max_rounds: z.ZodDefault<z.ZodNumber>;
     human_in_loop: z.ZodDefault<z.ZodBoolean>;
     revision_mode: z.ZodDefault<z.ZodEnum<["edits", "full"]>>;
+    planner_mode: z.ZodDefault<z.ZodEnum<["inline", "external"]>>;
 }, "strip", z.ZodTypeAny, {
     planner: {
         provider: string;
@@ -58,6 +59,7 @@ export declare const PlanpongConfigSchema: z.ZodObject<{
     max_rounds: number;
     human_in_loop: boolean;
     revision_mode: "edits" | "full";
+    planner_mode: "external" | "inline";
 }, {
     planner: {
         provider: string;
@@ -73,6 +75,7 @@ export declare const PlanpongConfigSchema: z.ZodObject<{
     max_rounds?: number | undefined;
     human_in_loop?: boolean | undefined;
     revision_mode?: "edits" | "full" | undefined;
+    planner_mode?: "external" | "inline" | undefined;
 }>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type PlanpongConfig = z.infer<typeof PlanpongConfigSchema>;

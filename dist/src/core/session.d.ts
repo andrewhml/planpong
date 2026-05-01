@@ -3,7 +3,7 @@ import type { PhaseFeedback } from "../schemas/feedback.js";
 import type { PlannerRevision } from "../schemas/revision.js";
 import type { ProviderConfig } from "../schemas/config.js";
 import { type RoundMetrics } from "../schemas/metrics.js";
-export declare function createSession(repoRoot: string, planPath: string, planner: ProviderConfig, reviewer: ProviderConfig, planHash: string): Session;
+export declare function createSession(repoRoot: string, planPath: string, planner: ProviderConfig, reviewer: ProviderConfig, planHash: string, plannerMode?: "inline" | "external"): Session;
 export declare function writeSessionState(repoRoot: string, session: Session): void;
 export declare function readSessionState(repoRoot: string, sessionId: string): Session | null;
 export declare function writeRoundFeedback(repoRoot: string, sessionId: string, round: number, feedback: PhaseFeedback): void;

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   extractJSON,
   parseFeedback,
@@ -10,7 +10,7 @@ import {
   StructuredOutputParseError,
   ZodValidationError,
 } from "./convergence.js";
-import type { ReviewFeedback } from "../schemas/feedback.js";
+import { ReviewFeedbackSchema, type ReviewFeedback } from "../schemas/feedback.js";
 
 // --- extractJSON ---
 
@@ -97,7 +97,7 @@ describe("parseFeedback", () => {
     expect(result.verdict).toBe("blocked");
   });
 
-  it("rejects approved_with_notes when issues have P1/P2", () => {
+  it("coerces approved_with_notes to needs_revision when issues have P1/P2", () => {
     const fb = {
       verdict: "approved_with_notes",
       summary: "Mostly good",
@@ -113,7 +113,35 @@ describe("parseFeedback", () => {
       ],
     };
     const input = `<planpong-feedback>${JSON.stringify(fb)}</planpong-feedback>`;
-    expect(() => parseFeedback(input)).toThrow();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = parseFeedback(input);
+    expect(result.verdict).toBe("needs_revision");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("approved_with_notes with non-P3 issues"),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("raw ReviewFeedbackSchema.parse() accepts approved_with_notes + P2 (no refinement)", () => {
+    // Single parser entrypoint enforcement — the refinement is gone from the
+    // schema and lives only in the parser functions. Direct schema callers
+    // would silently bypass coercion, so we keep this test as an explicit
+    // anchor for that contract.
+    const fb = {
+      verdict: "approved_with_notes",
+      summary: "test",
+      issues: [
+        {
+          id: "F1",
+          severity: "P2",
+          section: "s",
+          title: "t",
+          description: "d",
+          suggestion: "s",
+        },
+      ],
+    };
+    expect(() => ReviewFeedbackSchema.parse(fb)).not.toThrow();
   });
 
   it("allows approved_with_notes when all issues are P3", () => {
@@ -587,9 +615,11 @@ describe("parseStructuredFeedbackForPhase", () => {
     );
   });
 
-  it("throws ZodValidationError on Zod refinement failure (terminal, F2)", () => {
-    // approved_with_notes with a P1 issue violates the Zod refinement —
-    // JSON Schema accepts it, Zod rejects it. Must NOT pass through.
+  it("coerces approved_with_notes + P1 to needs_revision (was: terminal Zod refinement)", () => {
+    // The refinement was previously enforced as a Zod check that produced a
+    // terminal ZodValidationError. It now lives post-parse in convergence.ts
+    // as a coercion that downgrades to needs_revision with a console.warn.
+    // This is the same scenario the F2 test used to gate, flipped.
     const fb = {
       verdict: "approved_with_notes",
       summary: "looks good",
@@ -604,9 +634,16 @@ describe("parseStructuredFeedbackForPhase", () => {
         },
       ],
     };
-    expect(() =>
-      parseStructuredFeedbackForPhase(JSON.stringify(fb), "detail"),
-    ).toThrow(ZodValidationError);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = parseStructuredFeedbackForPhase(
+      JSON.stringify(fb),
+      "detail",
+    );
+    expect(result.verdict).toBe("needs_revision");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("approved_with_notes with non-P3 issues"),
+    );
+    warnSpy.mockRestore();
   });
 
   it("throws ZodValidationError when required fields missing", () => {

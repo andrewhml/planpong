@@ -22,6 +22,7 @@ export function createSession(
   planner: ProviderConfig,
   reviewer: ProviderConfig,
   planHash: string,
+  plannerMode: "inline" | "external" = "external",
 ): Session {
   const id = randomBytes(6).toString("hex");
   // Pre-generate a UUID for reviewer-session continuity. Used directly by
@@ -41,6 +42,7 @@ export function createSession(
     startedAt: new Date().toISOString(),
     planHash,
     reviewerSessionId,
+    plannerMode,
   };
 
   const dir = getSessionDir(repoRoot, id);
@@ -60,7 +62,15 @@ export function readSessionState(
 ): Session | null {
   const path = join(getSessionDir(repoRoot, sessionId), "session.json");
   if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, "utf-8")) as Session;
+  const parsed = JSON.parse(readFileSync(path, "utf-8")) as Session;
+  // Backward-compat normalization for sessions written before plannerMode
+  // existed. The Zod schema's .default() only fires under SessionSchema.parse(),
+  // which we deliberately skip here for performance. Old sessions that
+  // omit this field are treated as external — preserves prior behavior.
+  if (parsed.plannerMode === undefined) {
+    parsed.plannerMode = "external";
+  }
+  return parsed;
 }
 
 export function writeRoundFeedback(

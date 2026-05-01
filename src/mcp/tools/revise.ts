@@ -51,6 +51,22 @@ export async function reviseHandler(input: {
         };
       }
 
+      if (session.plannerMode === "inline") {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                error:
+                  "session is in inline planner mode — use planpong_record_revision instead",
+                planner_mode: "inline",
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+
       const config = loadConfig({ cwd });
       const plannerProvider = getProvider(session.planner.provider);
       if (!plannerProvider) {

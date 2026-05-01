@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerStartReview } from "./tools/start-review.js";
 import { registerGetFeedback } from "./tools/get-feedback.js";
 import { registerRevise } from "./tools/revise.js";
+import { registerRecordRevision } from "./tools/record-revision.js";
 import { registerStatus } from "./tools/status.js";
 import { registerListSessions } from "./tools/list-sessions.js";
 import { registerGetReport } from "./tools/get-report.js";
@@ -21,10 +22,12 @@ Planpong uses a three-phase review process:
 The "phase" field in tool responses tells you which phase is active. Mention the phase to the user so they understand why feedback character changes between rounds.
 
 When the user asks you to review a plan:
-1. Call planpong_start_review with the plan path. Pass interactive: true if the user asks to review interactively, step by step, or wants to approve each round. Default is false (autonomous).
+1. Call planpong_start_review with the plan path. Pass interactive: true if the user asks to review interactively, step by step, or wants to approve each round. Default is false (autonomous). Optionally pass planner_mode: "inline" to act as the planner yourself; default is "external" (planner provider invoked).
 2. Call planpong_get_feedback to get reviewer critique
 3. Show the user the feedback summary and issues (note: round 1 is directional review)
-4. If is_converged is false, call planpong_revise to revise the plan
+4. If is_converged is false, advance the round depending on planner_mode:
+   - **external mode (default):** call planpong_revise. The planner provider produces the revision and applies it to disk.
+   - **inline mode:** YOU are the planner. Summarize the issues to the user, edit the plan with your own Edit/Write tools, then call planpong_record_revision with one response per issue (issue_id, action: "accepted" | "rejected" | "deferred", rationale). Pass expected_round equal to the round number from the feedback. The tool logs your responses, updates the plan hash, and advances the bookkeeping — no provider invocation.
 5. Show the user the revision summary (accepted/rejected/deferred)
 6. Repeat steps 2-5 until converged or max rounds reached
 
@@ -45,6 +48,7 @@ Phase-specific feedback:
     registerStartReview(server);
     registerGetFeedback(server);
     registerRevise(server);
+    registerRecordRevision(server);
     registerStatus(server);
     registerListSessions(server);
     registerGetReport(server);

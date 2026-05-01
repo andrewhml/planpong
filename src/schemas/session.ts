@@ -23,6 +23,18 @@ export const SessionSchema = z.object({
   // calls use `--resume` (claude) or `codex exec resume <id>` (codex).
   reviewerSessionId: z.string().optional(),
   reviewerSessionInitialized: z.boolean().optional(),
+  // Planner mode is sticky for the session lifetime. `external` (default)
+  // routes revisions through `planpong_revise` + a planner provider;
+  // `inline` routes through `planpong_record_revision` so the agent that
+  // invoked /pong-review acts as the planner. Set at createSession time
+  // from the config; cannot change mid-loop.
+  //
+  // `.default("external")` makes old session files (written before this
+  // field existed) deserialize cleanly through SessionSchema.parse(). It is
+  // NOT sufficient on its own: `readSessionState` skips Zod validation and
+  // uses a raw `as Session` cast, so runtime normalization in core/session.ts
+  // is the authoritative compatibility mechanism.
+  plannerMode: z.enum(["inline", "external"]).default("external"),
 });
 
 export type Session = z.infer<typeof SessionSchema>;
