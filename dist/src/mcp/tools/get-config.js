@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { parse as parseYaml } from "yaml";
 import { loadConfig, findConfigPath } from "../../config/loader.js";
-import { getValidKeys } from "../../config/mutate.js";
+import { getValidKeys, getKeyMetadata } from "../../config/mutate.js";
 const inputSchema = {
     cwd: z
         .string()
@@ -66,6 +66,7 @@ export function registerGetConfig(server) {
                         config_path: configPath,
                         version,
                         sources,
+                        keys: getKeyMetadata(),
                     }),
                 },
             ],

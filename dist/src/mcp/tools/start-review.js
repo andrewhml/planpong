@@ -41,7 +41,7 @@ const inputSchema = {
     planner_mode: z
         .enum(["inline", "external"])
         .optional()
-        .describe("Planner mode for this session. 'external' (default) routes revisions through planpong_revise + a planner provider. 'inline' routes through planpong_record_revision so the agent that invoked /pong-review acts as the planner. Sticky for the session lifetime."),
+        .describe("Planner mode for this session. 'inline' (default) — you act as the planner via planpong_record_revision. 'external' — routes revisions through planpong_revise + a planner provider. Sticky for the session lifetime."),
 };
 export function registerStartReview(server) {
     server.tool("planpong_start_review", "Create a review session for an existing plan file. Validates the file, loads config, checks provider availability, and creates a session. Does NOT invoke any models.", inputSchema, async (input) => {

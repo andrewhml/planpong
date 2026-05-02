@@ -11,5 +11,5 @@ export const DEFAULT_CONFIG: PlanpongConfig = {
   max_rounds: 10,
   human_in_loop: true,
   revision_mode: "full",
-  planner_mode: "external",
+  planner_mode: "inline",
 };

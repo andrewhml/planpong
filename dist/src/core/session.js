@@ -6,7 +6,7 @@ const SESSIONS_DIR = ".planpong/sessions";
 function getSessionDir(repoRoot, sessionId) {
     return join(repoRoot, SESSIONS_DIR, sessionId);
 }
-export function createSession(repoRoot, planPath, planner, reviewer, planHash, plannerMode = "external") {
+export function createSession(repoRoot, planPath, planner, reviewer, planHash, plannerMode = "inline") {
     const id = randomBytes(6).toString("hex");
     // Pre-generate a UUID for reviewer-session continuity. Used directly by
     // claude (which accepts external UUIDs); for codex this is a placeholder

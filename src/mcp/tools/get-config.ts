@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { parse as parseYaml } from "yaml";
 import { loadConfig, findConfigPath } from "../../config/loader.js";
-import { getValidKeys } from "../../config/mutate.js";
+import { getValidKeys, getKeyMetadata } from "../../config/mutate.js";
 
 const inputSchema = {
   cwd: z
@@ -77,6 +77,7 @@ export function registerGetConfig(server: McpServer): void {
               config_path: configPath,
               version,
               sources,
+              keys: getKeyMetadata(),
             }),
           },
         ],

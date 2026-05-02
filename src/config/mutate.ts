@@ -6,21 +6,36 @@ import { PlanpongConfigSchema } from "../schemas/config.js";
 import { findConfigPath } from "./loader.js";
 import { loadConfig } from "./loader.js";
 
-const VALID_KEYS = [
-  "planner.provider",
-  "planner.model",
-  "planner.effort",
-  "reviewer.provider",
-  "reviewer.model",
-  "reviewer.effort",
-  "plans_dir",
-  "max_rounds",
-  "human_in_loop",
-  "revision_mode",
-  "planner_mode",
-] as const;
+export interface KeyMeta {
+  key: string;
+  description: string;
+  values: string;
+  default: string;
+}
 
-export type ValidKey = (typeof VALID_KEYS)[number];
+const KEY_METADATA: KeyMeta[] = [
+  { key: "planner.provider", description: "AI provider for plan revisions", values: "string (e.g. claude, codex)", default: "claude" },
+  { key: "planner.model", description: "Model name for the planner", values: "string", default: "(provider default)" },
+  { key: "planner.effort", description: "Effort/quality level for the planner", values: "string", default: "(provider default)" },
+  { key: "reviewer.provider", description: "AI provider for plan review", values: "string (e.g. claude, codex)", default: "codex" },
+  { key: "reviewer.model", description: "Model name for the reviewer", values: "string", default: "(provider default)" },
+  { key: "reviewer.effort", description: "Effort/quality level for the reviewer", values: "string", default: "(provider default)" },
+  { key: "plans_dir", description: "Directory for plan files", values: "path", default: "docs/plans" },
+  { key: "max_rounds", description: "Maximum review rounds before stopping", values: "1–50", default: "10" },
+  { key: "human_in_loop", description: "Pause for user confirmation between rounds", values: "true | false", default: "true" },
+  { key: "revision_mode", description: "How revisions are applied", values: "full | edits", default: "full" },
+  { key: "planner_mode", description: "Who revises the plan", values: "inline | external", default: "inline" },
+];
+
+const VALID_KEYS = KEY_METADATA.map((m) => m.key) as unknown as readonly ValidKey[];
+
+type ValidKey =
+  | "planner.provider" | "planner.model" | "planner.effort"
+  | "reviewer.provider" | "reviewer.model" | "reviewer.effort"
+  | "plans_dir" | "max_rounds" | "human_in_loop"
+  | "revision_mode" | "planner_mode";
+
+export type { ValidKey };
 
 export interface SetConfigResult {
   configPath: string;
@@ -36,6 +51,14 @@ export function isValidKey(key: string): key is ValidKey {
 
 export function getValidKeys(): readonly string[] {
   return VALID_KEYS;
+}
+
+export function getKeyMetadata(): readonly KeyMeta[] {
+  return KEY_METADATA;
+}
+
+export function getKeyMeta(key: string): KeyMeta | undefined {
+  return KEY_METADATA.find((m) => m.key === key);
 }
 
 function coerceValue(key: string, raw: string): unknown {

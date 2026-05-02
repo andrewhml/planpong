@@ -1,7 +1,13 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig, findConfigPath } from "../../config/loader.js";
-import { setConfigValue, getValidKeys } from "../../config/mutate.js";
+import { setConfigValue, getKeyMetadata } from "../../config/mutate.js";
+
+function keyReference(): string {
+  return getKeyMetadata()
+    .map((m) => `  ${m.key} (${m.values}, default: ${m.default}) — ${m.description}`)
+    .join("\n");
+}
 
 const inputSchema = {
   cwd: z
@@ -11,7 +17,7 @@ const inputSchema = {
   key: z
     .string()
     .describe(
-      `Dotted config key. Valid keys: ${getValidKeys().join(", ")}`,
+      `Config key to set. Available keys:\n${keyReference()}`,
     ),
   value: z
     .string()
