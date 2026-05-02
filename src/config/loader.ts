@@ -15,10 +15,10 @@ const CONFIG_FILENAMES = [
 ];
 
 /**
- * Search upward from `cwd` for a config file. Returns the parsed
- * contents or null if no file is found.
+ * Search upward from `cwd` for a config file path.
+ * Returns the absolute path or null if no file is found.
  */
-function findConfigFile(cwd: string): Record<string, unknown> | null {
+export function findConfigPath(cwd: string): string | null {
   let dir = cwd;
   const root = "/";
 
@@ -26,8 +26,7 @@ function findConfigFile(cwd: string): Record<string, unknown> | null {
     for (const filename of CONFIG_FILENAMES) {
       const candidate = join(dir, filename);
       if (existsSync(candidate)) {
-        const raw = readFileSync(candidate, "utf-8");
-        return parseYaml(raw) as Record<string, unknown>;
+        return candidate;
       }
     }
     const parent = join(dir, "..");
@@ -36,6 +35,13 @@ function findConfigFile(cwd: string): Record<string, unknown> | null {
   }
 
   return null;
+}
+
+function findConfigFile(cwd: string): Record<string, unknown> | null {
+  const path = findConfigPath(cwd);
+  if (!path) return null;
+  const raw = readFileSync(path, "utf-8");
+  return parseYaml(raw) as Record<string, unknown>;
 }
 
 export interface LoadConfigOptions {

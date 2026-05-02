@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { Command } from "commander";
 import { registerPlanCommand } from "../src/cli/commands/plan.js";
 import { registerReviewCommand } from "../src/cli/commands/review.js";
+import { registerConfigCommand } from "../src/cli/commands/config.js";
 
 // Read version from the installed package.json so `planpong --version`
 // always reflects the actual installed version. Hardcoding it here
@@ -51,5 +52,6 @@ program
 
 registerPlanCommand(program);
 registerReviewCommand(program);
+registerConfigCommand(program);
 
 program.parse();

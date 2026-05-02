@@ -7,6 +7,8 @@ import { registerRecordRevision } from "./tools/record-revision.js";
 import { registerStatus } from "./tools/status.js";
 import { registerListSessions } from "./tools/list-sessions.js";
 import { registerGetReport } from "./tools/get-report.js";
+import { registerGetConfig } from "./tools/get-config.js";
+import { registerSetConfig } from "./tools/set-config.js";
 export function createPlanpongServer() {
     const server = new McpServer({
         name: "planpong",
@@ -52,6 +54,8 @@ Phase-specific feedback:
     registerStatus(server);
     registerListSessions(server);
     registerGetReport(server);
+    registerGetConfig(server);
+    registerSetConfig(server);
     // MCP prompts — become slash commands in Claude Code
     server.registerPrompt("review", {
         title: "Review a plan",

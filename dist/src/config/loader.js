@@ -10,18 +10,17 @@ const CONFIG_FILENAMES = [
     ".planpong.yml",
 ];
 /**
- * Search upward from `cwd` for a config file. Returns the parsed
- * contents or null if no file is found.
+ * Search upward from `cwd` for a config file path.
+ * Returns the absolute path or null if no file is found.
  */
-function findConfigFile(cwd) {
+export function findConfigPath(cwd) {
     let dir = cwd;
     const root = "/";
     while (true) {
         for (const filename of CONFIG_FILENAMES) {
             const candidate = join(dir, filename);
             if (existsSync(candidate)) {
-                const raw = readFileSync(candidate, "utf-8");
-                return parseYaml(raw);
+                return candidate;
             }
         }
         const parent = join(dir, "..");
@@ -30,6 +29,13 @@ function findConfigFile(cwd) {
         dir = parent;
     }
     return null;
+}
+function findConfigFile(cwd) {
+    const path = findConfigPath(cwd);
+    if (!path)
+        return null;
+    const raw = readFileSync(path, "utf-8");
+    return parseYaml(raw);
 }
 export function loadConfig(options) {
     const fileConfig = findConfigFile(options.cwd) ?? {};

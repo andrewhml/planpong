@@ -86,17 +86,44 @@ Optional. Create `planpong.yaml` in your project root:
 ```yaml
 planner:
   provider: claude # claude or codex
-  model: opus # provider-specific model name
+  model: claude-opus-4-6 # provider-specific model name
   effort: high # reasoning effort level
 reviewer:
   provider: codex
-  model: o3
-  effort: high
+  model: gpt-5.3-codex
+  effort: xhigh
 max_rounds: 10
 plans_dir: docs/plans
+revision_mode: full # full or edits
+planner_mode: external # external or inline
 ```
 
 All fields are optional. Defaults: claude (planner) + codex (reviewer), 10 rounds, `docs/plans/` directory.
+
+### Viewing and changing config
+
+```sh
+planpong config              # show resolved config with source annotations
+planpong config path         # print path to active config file
+planpong config set <key> <value>   # set a config value
+```
+
+Examples:
+
+```sh
+planpong config set reviewer.model gpt-5.3-codex
+planpong config set max_rounds 5
+planpong config set planner_mode inline
+```
+
+Valid keys: `planner.provider`, `planner.model`, `planner.effort`, `reviewer.provider`, `reviewer.model`, `reviewer.effort`, `plans_dir`, `max_rounds`, `human_in_loop`, `revision_mode`, `planner_mode`.
+
+### Config via MCP
+
+Two MCP tools are available for programmatic config access:
+
+- **`planpong_get_config`** — returns resolved config, file path, version, and per-key source provenance
+- **`planpong_set_config`** — dry-run by default (`confirm: false`); pass `confirm: true` to write
 
 ## What it produces
 
