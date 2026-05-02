@@ -48,7 +48,19 @@ program
   .description(
     "Multi-model plan review CLI — orchestrates AI agents for adversarial plan refinement",
   )
-  .version(readPackageVersion());
+  .version(readPackageVersion())
+  .addHelpText(
+    "after",
+    `
+Quick reference:
+  planpong config              Show current config values and sources
+  planpong config keys         List all settings with valid values and defaults
+  planpong config get <key>    Get a single setting
+  planpong config set <key> <value>  Change a setting
+
+  planpong review <plan-file>  Start adversarial review of a plan
+  planpong plan <requirements> Generate a plan and review it`,
+  );
 
 registerPlanCommand(program);
 registerReviewCommand(program);
