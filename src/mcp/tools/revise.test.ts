@@ -58,6 +58,7 @@ describe("reviseHandler timing response contract", () => {
       { provider: "claude" },
       { provider: "codex" },
       "hash",
+      "external",
     );
     session.status = "in_review";
     session.currentRound = 1;

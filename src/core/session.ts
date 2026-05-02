@@ -22,7 +22,7 @@ export function createSession(
   planner: ProviderConfig,
   reviewer: ProviderConfig,
   planHash: string,
-  plannerMode: "inline" | "external" = "external",
+  plannerMode: "inline" | "external" = "inline",
 ): Session {
   const id = randomBytes(6).toString("hex");
   // Pre-generate a UUID for reviewer-session continuity. Used directly by

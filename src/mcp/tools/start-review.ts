@@ -51,7 +51,7 @@ const inputSchema = {
     .enum(["inline", "external"])
     .optional()
     .describe(
-      "Planner mode for this session. 'external' (default) routes revisions through planpong_revise + a planner provider. 'inline' routes through planpong_record_revision so the agent that invoked /pong-review acts as the planner. Sticky for the session lifetime.",
+      "Planner mode for this session. 'inline' (default) — you act as the planner via planpong_record_revision. 'external' — routes revisions through planpong_revise + a planner provider. Sticky for the session lifetime.",
     ),
 };
 

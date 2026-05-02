@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { loadConfig } from "../../config/loader.js";
-import { setConfigValue, getValidKeys } from "../../config/mutate.js";
+import { setConfigValue, getKeyMetadata } from "../../config/mutate.js";
+function keyReference() {
+    return getKeyMetadata()
+        .map((m) => `  ${m.key} (${m.values}, default: ${m.default}) — ${m.description}`)
+        .join("\n");
+}
 const inputSchema = {
     cwd: z
         .string()
@@ -8,7 +13,7 @@ const inputSchema = {
         .describe("Working directory (defaults to process.cwd())"),
     key: z
         .string()
-        .describe(`Dotted config key. Valid keys: ${getValidKeys().join(", ")}`),
+        .describe(`Config key to set. Available keys:\n${keyReference()}`),
     value: z
         .string()
         .describe("Value to set (coerced to number/boolean as schema requires)"),

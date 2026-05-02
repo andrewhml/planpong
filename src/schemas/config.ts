@@ -18,14 +18,7 @@ export const PlanpongConfigSchema = z.object({
   // kill switch — risk + detail phases use the direction-phase schema and
   // skip the edit applier entirely.
   revision_mode: z.enum(["edits", "full"]).default("full"),
-  // `external` (default) preserves today's behavior: `planpong_revise`
-  // sends plan + feedback to a planner provider that produces a structured
-  // revision. `inline` flips the loop: `planpong_revise` errors out, the
-  // agent that invoked /pong-review uses `planpong_record_revision` to log
-  // its own responses + advance the round after editing the plan with its
-  // own Edit/Write tools. Inline mode trades the planner's adversarial
-  // signal for the agent's full session context.
-  planner_mode: z.enum(["inline", "external"]).default("external"),
+  planner_mode: z.enum(["inline", "external"]).default("inline"),
 });
 
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
