@@ -10,13 +10,14 @@ import {
   formatDuration,
   formatProviderLabel,
   updatePlanStatusLine,
+  writeStatusLineToPlan,
   initReviewSession,
   runReviewRound,
   type RoundSeverity,
 } from "./operations.js";
 import * as sessionModule from "./session.js";
 import { RoundMetricsSchema } from "../schemas/metrics.js";
-import type { ReviewFeedback } from "../schemas/feedback.js";
+import type { DirectionFeedback, ReviewFeedback, RiskFeedback } from "../schemas/feedback.js";
 import type {
   Provider,
   InvokeOptions,
@@ -178,6 +179,138 @@ describe("updatePlanStatusLine", () => {
     expect(lines[0]).toBe("# My Plan");
     expect(lines[1]).toBe("");
     expect(lines[2]).toBe("**planpong:** R0/10 | init");
+  });
+});
+
+describe("writeStatusLineToPlan phase extras", () => {
+  function makeStatusConfig(): PlanpongConfig {
+    return {
+      planner: { provider: "claude" },
+      reviewer: { provider: "codex" },
+      plans_dir: "docs/plans",
+      max_rounds: 10,
+      human_in_loop: true,
+      revision_mode: "full",
+      planner_mode: "inline",
+    };
+  }
+
+  function seedStatusSession(tmpDir: string, planPath: string, round: number) {
+    const session = sessionModule.createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      "hash",
+    );
+    session.status = "in_review";
+    session.currentRound = round;
+    session.initialLineCount = 5;
+    sessionModule.writeSessionState(tmpDir, session);
+    writeFileSync(
+      planPath,
+      "# Plan\n\n**Status:** Draft\n**planpong:** R0/10 | old\n",
+    );
+    return session;
+  }
+
+  it("includes direction confidence when writing MCP-style status", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "planpong-status-extra-"));
+    try {
+      mkdirSync(join(tmpDir, "docs", "plans"), { recursive: true });
+      const planPath = join(tmpDir, "docs", "plans", "plan.md");
+      const session = seedStatusSession(tmpDir, planPath, 1);
+      const feedback: DirectionFeedback = {
+        verdict: "needs_revision",
+        summary: "direction",
+        issues: [
+          {
+            id: "F1",
+            severity: "P2",
+            section: "Context",
+            title: "unclear",
+            description: "x",
+            suggestion: "y",
+          },
+        ],
+        confidence: "medium",
+        approach_assessment: "ok",
+        alternatives: [],
+        assumptions: [],
+      };
+      sessionModule.writeRoundFeedback(tmpDir, session.id, 1, feedback);
+
+      const statusLine = writeStatusLineToPlan(
+        session,
+        tmpDir,
+        makeStatusConfig(),
+        "Reviewed - 1 issues",
+        { confidence: "medium" },
+      );
+
+      expect(statusLine).toContain("direction | confidence: medium | 1P2");
+      expect(readFileSync(planPath, "utf-8")).toContain(statusLine);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("includes risk level and risk count when writing MCP-style status", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "planpong-status-extra-"));
+    try {
+      mkdirSync(join(tmpDir, "docs", "plans"), { recursive: true });
+      const planPath = join(tmpDir, "docs", "plans", "plan.md");
+      const session = seedStatusSession(tmpDir, planPath, 2);
+      const feedback: RiskFeedback = {
+        verdict: "needs_revision",
+        summary: "risk",
+        issues: [
+          {
+            id: "F1",
+            severity: "P1",
+            section: "Risks",
+            title: "dependency",
+            description: "x",
+            suggestion: "y",
+          },
+        ],
+        risk_level: "high",
+        risks: [
+          {
+            id: "R1",
+            category: "dependency",
+            likelihood: "high",
+            impact: "high",
+            title: "dependency",
+            description: "x",
+            mitigation: "y",
+          },
+          {
+            id: "R2",
+            category: "operational",
+            likelihood: "medium",
+            impact: "high",
+            title: "ops",
+            description: "x",
+            mitigation: "y",
+          },
+        ],
+      };
+      sessionModule.writeRoundFeedback(tmpDir, session.id, 2, feedback);
+
+      const statusLine = writeStatusLineToPlan(
+        session,
+        tmpDir,
+        makeStatusConfig(),
+        "Reviewed - 1 issues",
+        { risk_level: "high", risk_count: 2, risks_promoted: 1 },
+      );
+
+      expect(statusLine).toContain("risk | risk: high | 2 risks (1 promoted) | 1P1");
+      expect(readFileSync(planPath, "utf-8")).toContain(statusLine);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 

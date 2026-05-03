@@ -69,7 +69,7 @@ export declare function buildStatusLine(session: Session, config: PlanpongConfig
  * Build and write the status line to the plan file.
  * Used by both CLI and MCP paths after each round.
  */
-export declare function writeStatusLineToPlan(session: Session, cwd: string, config: PlanpongConfig, suffix?: string): string;
+export declare function writeStatusLineToPlan(session: Session, cwd: string, config: PlanpongConfig, suffix?: string, phaseExtras?: PhaseExtras): string;
 export declare function updatePlanStatusLine(planContent: string, statusLine: string): string;
 /**
  * Initialize a review session for an existing plan file.

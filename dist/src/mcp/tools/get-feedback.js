@@ -4,8 +4,9 @@ import { resolve } from "node:path";
 import { loadConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
 import { readSessionState, writeSessionState, readInitialPlan, } from "../../core/session.js";
-import { runReviewRound, writeStatusLineToPlan, } from "../../core/operations.js";
+import { runReviewRound, writeStatusLineToPlan, formatPhaseExtras, } from "../../core/operations.js";
 import { getReviewPhase } from "../../prompts/reviewer.js";
+import { formatFeedbackDisplay } from "../../core/presentation.js";
 const inputSchema = {
     session_id: z.string().describe("Session ID from planpong_start_review"),
     cwd: z
@@ -74,17 +75,29 @@ export async function getFeedbackHandler(input) {
             ? `BLOCKED in ${getReviewPhase(result.round)} phase`
             : `Approved after ${result.round} rounds`
         : `Reviewed — ${result.feedback.issues.length} issues`;
-    const statusLine = writeStatusLineToPlan(session, cwd, sessionConfig, suffix);
+    const statusLine = writeStatusLineToPlan(session, cwd, sessionConfig, suffix, result.phaseExtras);
     const phase = getReviewPhase(result.round);
-    const response = {
+    const phaseSignal = formatPhaseExtras(phase, result.phaseExtras);
+    const display = formatFeedbackDisplay({
         round: result.round,
         phase,
         verdict: result.feedback.verdict,
+        severity: result.severity,
+        feedback: result.feedback,
+        phaseSignal,
+    });
+    const response = {
+        round: result.round,
+        phase,
+        phase_label: phase,
+        verdict: result.feedback.verdict,
         summary: result.feedback.summary,
         issues: result.feedback.issues,
+        issue_rows: display.rows,
         severity_counts: result.severity,
         is_converged: result.converged,
         status_line: statusLine,
+        display_markdown: display.markdown,
     };
     if (result.timing) {
         response.timing = result.timing;

@@ -13,8 +13,10 @@ import {
   runReviewRound,
   severityFromFeedback,
   writeStatusLineToPlan,
+  formatPhaseExtras,
 } from "../../core/operations.js";
 import { getReviewPhase } from "../../prompts/reviewer.js";
+import { formatFeedbackDisplay } from "../../core/presentation.js";
 
 const inputSchema = {
   session_id: z.string().describe("Session ID from planpong_start_review"),
@@ -105,18 +107,31 @@ export async function getFeedbackHandler(input: {
         cwd,
         sessionConfig,
         suffix,
+        result.phaseExtras,
       );
 
       const phase = getReviewPhase(result.round);
-      const response: Record<string, unknown> = {
+      const phaseSignal = formatPhaseExtras(phase, result.phaseExtras);
+      const display = formatFeedbackDisplay({
         round: result.round,
         phase,
         verdict: result.feedback.verdict,
+        severity: result.severity,
+        feedback: result.feedback,
+        phaseSignal,
+      });
+      const response: Record<string, unknown> = {
+        round: result.round,
+        phase,
+        phase_label: phase,
+        verdict: result.feedback.verdict,
         summary: result.feedback.summary,
         issues: result.feedback.issues,
+        issue_rows: display.rows,
         severity_counts: result.severity,
         is_converged: result.converged,
         status_line: statusLine,
+        display_markdown: display.markdown,
       };
 
       if (result.timing) {

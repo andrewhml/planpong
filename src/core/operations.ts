@@ -306,6 +306,7 @@ export function writeStatusLineToPlan(
   cwd: string,
   config: PlanpongConfig,
   suffix?: string,
+  phaseExtras?: PhaseExtras,
 ): string {
   const planPath = resolve(cwd, session.planPath);
   let planContent = readFileSync(planPath, "utf-8");
@@ -328,6 +329,7 @@ export function writeStatusLineToPlan(
       linesAdded,
       linesRemoved,
       elapsed,
+      phaseExtras,
     ) + (suffix ? ` | ${suffix}` : "");
 
   planContent = updatePlanStatusLine(planContent, statusLine);

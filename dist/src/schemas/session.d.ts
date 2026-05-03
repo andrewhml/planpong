@@ -51,13 +51,13 @@ export declare const SessionSchema: z.ZodObject<{
         model?: string | undefined;
         effort?: string | undefined;
     };
-    plannerMode: "external" | "inline";
     repoRoot: string;
     planPath: string;
     planPathAbsolute: string;
     currentRound: number;
     startedAt: string;
     planHash: string;
+    plannerMode: "external" | "inline";
     initialLineCount?: number | undefined;
     reviewerSessionId?: string | undefined;
     reviewerSessionInitialized?: boolean | undefined;
@@ -80,9 +80,9 @@ export declare const SessionSchema: z.ZodObject<{
     currentRound: number;
     startedAt: string;
     planHash: string;
-    plannerMode?: "external" | "inline" | undefined;
     initialLineCount?: number | undefined;
     reviewerSessionId?: string | undefined;
     reviewerSessionInitialized?: boolean | undefined;
+    plannerMode?: "external" | "inline" | undefined;
 }>;
 export type Session = z.infer<typeof SessionSchema>;

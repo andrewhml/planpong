@@ -20,6 +20,30 @@ function makeFeedback(): DirectionFeedback {
   };
 }
 
+function makeFeedbackWithIssues(): DirectionFeedback {
+  return {
+    ...makeFeedback(),
+    issues: [
+      {
+        id: "F1",
+        severity: "P2",
+        section: "Steps",
+        title: "Missing verification",
+        description: "x",
+        suggestion: "y",
+      },
+      {
+        id: "F2",
+        severity: "P3",
+        section: "Risks",
+        title: "Clarify rollback",
+        description: "x",
+        suggestion: "y",
+      },
+    ],
+  };
+}
+
 function makeReviewResult(opts: {
   timing?: { duration_ms: number; attempts: number };
 }): ReviewRoundResult {
@@ -160,5 +184,35 @@ describe("getFeedbackHandler timing response contract", () => {
     const payload = parseResponseJson(result);
 
     expect("quote_compliance_warning" in payload).toBe(false);
+  });
+
+  it("includes display_markdown and pending issue rows", async () => {
+    const sessionId = seedSession();
+    const fb = makeFeedbackWithIssues();
+    vi.spyOn(operations, "runReviewRound").mockResolvedValue({
+      round: 1,
+      feedback: fb,
+      severity: { P1: 0, P2: 1, P3: 1 },
+      converged: false,
+      phaseExtras: { confidence: "high" },
+    });
+
+    const result = await getFeedbackHandler({
+      session_id: sessionId,
+      cwd: tmpDir,
+    });
+    const payload = parseResponseJson(result);
+
+    expect(payload.issue_rows).toHaveLength(2);
+    expect(payload.issue_rows[0]).toMatchObject({
+      issue_id: "F1",
+      severity: "P2",
+      section: "Steps",
+      title: "Missing verification",
+      decision: "pending",
+    });
+    expect(payload.display_markdown).toContain("Round 1 - Direction - Needs Revision");
+    expect(payload.display_markdown).toContain("| F1 | P2 | Steps | Missing verification | Pending |");
+    expect(payload.display_markdown).toContain("confidence: high");
   });
 });

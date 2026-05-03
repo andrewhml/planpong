@@ -2,11 +2,12 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
-import { readSessionState } from "../../core/session.js";
+import { readRoundFeedback, readSessionState } from "../../core/session.js";
 import {
   runRevisionRound,
   writeStatusLineToPlan,
 } from "../../core/operations.js";
+import { formatDecisionDisplay } from "../../core/presentation.js";
 
 const inputSchema = {
   session_id: z.string().describe("Session ID from planpong_start_review"),
@@ -125,6 +126,19 @@ export async function reviseHandler(input: {
         plan_updated: result.planUpdated,
         status_line: statusLine,
       };
+      const feedback = readRoundFeedback(cwd, session.id, result.round);
+      if (feedback) {
+        const display = formatDecisionDisplay({
+          round: result.round,
+          feedback,
+          revision: result.revision,
+        });
+        payload.decision_rows = display.rows;
+        payload.display_markdown = display.markdown;
+        if (display.warnings.length > 0) {
+          payload.display_warnings = display.warnings;
+        }
+      }
       if (result.timing) {
         payload.timing = result.timing;
       }

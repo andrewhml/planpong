@@ -5,7 +5,12 @@ import { join } from "node:path";
 import { reviseHandler } from "./revise.js";
 import * as operations from "../../core/operations.js";
 import type { RevisionRoundResult } from "../../core/operations.js";
-import { createSession, writeSessionState } from "../../core/session.js";
+import {
+  createSession,
+  writeRoundFeedback,
+  writeSessionState,
+} from "../../core/session.js";
+import type { ReviewFeedback } from "../../schemas/feedback.js";
 
 function makeRevisionResult(opts: {
   timing?: { duration_ms: number; attempts: number };
@@ -22,6 +27,31 @@ function makeRevisionResult(opts: {
     deferred: 0,
     planUpdated: true,
     timing: opts.timing,
+  };
+}
+
+function makeFeedback(): ReviewFeedback {
+  return {
+    verdict: "needs_revision",
+    summary: "needs work",
+    issues: [
+      {
+        id: "F1",
+        severity: "P2",
+        section: "Steps",
+        title: "Missing verification",
+        description: "x",
+        suggestion: "y",
+      },
+      {
+        id: "F2",
+        severity: "P3",
+        section: "Risks",
+        title: "Clarify rollback",
+        description: "x",
+        suggestion: "y",
+      },
+    ],
   };
 }
 
@@ -64,6 +94,7 @@ describe("reviseHandler timing response contract", () => {
     session.currentRound = 1;
     session.initialLineCount = 7;
     writeSessionState(tmpDir, session);
+    writeRoundFeedback(tmpDir, session.id, 1, makeFeedback());
     return session.id;
   }
 
@@ -143,6 +174,43 @@ describe("reviseHandler timing response contract", () => {
     const payload = parseResponseJson(result);
 
     expect(payload.unverified_rejected).toBe(0);
+  });
+
+  it("includes decision display rows from current feedback", async () => {
+    const sessionId = seedSession();
+    const result: RevisionRoundResult = {
+      round: 1,
+      revision: {
+        responses: [
+          { issue_id: "F1", action: "accepted", rationale: "added tests" },
+          { issue_id: "F2", action: "deferred", rationale: "needs input" },
+        ],
+        updated_plan:
+          "# Plan\n\n**Status:** Draft\n**planpong:** R1/10 | claude → codex | x\n\n## Steps\n- [ ] x\n",
+      },
+      accepted: 1,
+      rejected: 0,
+      deferred: 1,
+      planUpdated: true,
+    };
+    vi.spyOn(operations, "runRevisionRound").mockResolvedValue(result);
+
+    const handlerResult = await reviseHandler({
+      session_id: sessionId,
+      cwd: tmpDir,
+    });
+    const payload = parseResponseJson(handlerResult);
+
+    expect(payload.decision_rows).toHaveLength(2);
+    expect(payload.decision_rows[0]).toMatchObject({
+      issue_id: "F1",
+      severity: "P2",
+      title: "Missing verification",
+      decision: "accepted",
+      rationale: "added tests",
+    });
+    expect(payload.display_markdown).toContain("Round 1 - Planner decisions");
+    expect(payload.display_markdown).toContain("| F2 | P3 | Clarify rollback | Deferred | needs input |");
   });
 
   it("returns isError + route hint when session is in inline planner mode", async () => {

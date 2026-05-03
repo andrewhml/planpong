@@ -1,3 +1,4 @@
 node_modules/
+.planpong/
 bench/results/
 bench/quality/results/

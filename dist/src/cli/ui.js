@@ -1,10 +1,8 @@
 import chalk from "chalk";
 import ora from "ora";
-const SEVERITY_COLORS = {
-    P1: chalk.red.bold,
-    P2: chalk.yellow,
-    P3: chalk.blue,
-};
+import { severityFromFeedback } from "../core/operations.js";
+import { formatFeedbackDisplay } from "../core/presentation.js";
+import { getReviewPhase } from "../prompts/reviewer.js";
 const ACTION_COLORS = {
     accepted: chalk.green,
     rejected: chalk.red,
@@ -22,20 +20,14 @@ export function createSpinner(text) {
 export function printFeedbackSummary(round, feedback) {
     const verdictColor = feedback.verdict === "needs_revision" ? chalk.yellow : chalk.green;
     console.log(`\n${chalk.bold(`Round ${round} Review`)} — ${verdictColor(feedback.verdict)}`);
-    console.log(chalk.dim(feedback.summary));
-    if (feedback.issues.length === 0) {
-        console.log(chalk.green("  No issues found."));
-        return;
-    }
-    console.log();
-    for (const issue of feedback.issues) {
-        printIssue(issue);
-    }
-}
-function printIssue(issue) {
-    const colorFn = SEVERITY_COLORS[issue.severity] ?? chalk.white;
-    console.log(`  ${colorFn(issue.severity)} ${chalk.bold(issue.id)}: ${issue.title}`);
-    console.log(chalk.dim(`       ${issue.section}`));
+    const display = formatFeedbackDisplay({
+        round,
+        phase: getReviewPhase(round),
+        verdict: feedback.verdict,
+        severity: severityFromFeedback(feedback),
+        feedback,
+    });
+    console.log(display.markdown);
 }
 export function printRevisionSummary(round, revision) {
     console.log(`\n${chalk.bold(`Round ${round} Revision`)}`);

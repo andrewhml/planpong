@@ -20,6 +20,7 @@ import {
   type PlannerRevision,
 } from "../../schemas/revision.js";
 import type { RoundMetrics } from "../../schemas/metrics.js";
+import { formatDecisionDisplay } from "../../core/presentation.js";
 
 /**
  * Inline-mode counterpart to `planpong_revise`. The agent that invoked
@@ -137,6 +138,10 @@ export async function recordRevisionHandler(input: {
   // legitimately rejected and the plan correctly stays unchanged.
   const planUnchanged = session.planHash === planHashBefore;
   const anyAccepted = input.responses.some((r) => r.action === "accepted");
+  const planUpdateWarning =
+    planUnchanged && anyAccepted
+      ? `Round ${round} has accepted issues but the plan hash is unchanged. Confirm the plan edits were applied.`
+      : undefined;
   if (planUnchanged && anyAccepted) {
     process.stderr.write(
       `[planpong] warn: round ${round} has accepted issues but plan hash is unchanged — did the agent forget to edit?\n`,
@@ -185,6 +190,13 @@ export async function recordRevisionHandler(input: {
       /unverified\s+evidence/i.test(r.rationale ?? ""),
   ).length;
 
+  const display = formatDecisionDisplay({
+    round,
+    feedback,
+    revision,
+    warning: planUpdateWarning,
+  });
+
   const payload = {
     round,
     responses: input.responses,
@@ -196,6 +208,9 @@ export async function recordRevisionHandler(input: {
     status_line: statusLine,
     planner_mode: "inline" as const,
     idempotent_replay: !tally.fresh,
+    decision_rows: display.rows,
+    display_markdown: display.markdown,
+    ...(display.warnings.length > 0 && { display_warnings: display.warnings }),
   };
 
   return {

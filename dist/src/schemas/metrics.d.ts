@@ -1,6 +1,6 @@
 import { z } from "zod";
 export declare const InvocationAttemptSchema: z.ZodObject<{
-    mode: z.ZodEffects<z.ZodEnum<["structured", "prompted"]>, "structured" | "prompted", unknown>;
+    mode: z.ZodEnum<["structured", "legacy"]>;
     provider: z.ZodString;
     model: z.ZodNullable<z.ZodString>;
     effort: z.ZodNullable<z.ZodString>;
@@ -16,28 +16,28 @@ export declare const InvocationAttemptSchema: z.ZodObject<{
     provider: string;
     model: string | null;
     effort: string | null;
-    ok: boolean;
-    mode: "structured" | "prompted";
+    mode: "structured" | "legacy";
     prompt_chars: number;
     prompt_lines: number;
     output_chars: number | null;
     output_lines: number | null;
     duration_ms: number;
+    ok: boolean;
     error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
     error_exit_code: number | null;
 }, {
     provider: string;
     model: string | null;
     effort: string | null;
-    ok: boolean;
+    mode: "structured" | "legacy";
     prompt_chars: number;
     prompt_lines: number;
     output_chars: number | null;
     output_lines: number | null;
     duration_ms: number;
+    ok: boolean;
     error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
     error_exit_code: number | null;
-    mode?: unknown;
 }>;
 export declare const RoundMetricsSchema: z.ZodObject<{
     schema_version: z.ZodLiteral<1>;
@@ -49,7 +49,7 @@ export declare const RoundMetricsSchema: z.ZodObject<{
     completed_at: z.ZodString;
     total_duration_ms: z.ZodNumber;
     attempts: z.ZodArray<z.ZodObject<{
-        mode: z.ZodEffects<z.ZodEnum<["structured", "prompted"]>, "structured" | "prompted", unknown>;
+        mode: z.ZodEnum<["structured", "legacy"]>;
         provider: z.ZodString;
         model: z.ZodNullable<z.ZodString>;
         effort: z.ZodNullable<z.ZodString>;
@@ -65,28 +65,28 @@ export declare const RoundMetricsSchema: z.ZodObject<{
         provider: string;
         model: string | null;
         effort: string | null;
-        ok: boolean;
-        mode: "structured" | "prompted";
+        mode: "structured" | "legacy";
         prompt_chars: number;
         prompt_lines: number;
         output_chars: number | null;
         output_lines: number | null;
         duration_ms: number;
+        ok: boolean;
         error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
         error_exit_code: number | null;
     }, {
         provider: string;
         model: string | null;
         effort: string | null;
-        ok: boolean;
+        mode: "structured" | "legacy";
         prompt_chars: number;
         prompt_lines: number;
         output_chars: number | null;
         output_lines: number | null;
         duration_ms: number;
+        ok: boolean;
         error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
         error_exit_code: number | null;
-        mode?: unknown;
     }>, "many">;
     revision_mode: z.ZodOptional<z.ZodNullable<z.ZodEnum<["full", "edits"]>>>;
     edits_attempted: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
@@ -109,13 +109,13 @@ export declare const RoundMetricsSchema: z.ZodObject<{
         provider: string;
         model: string | null;
         effort: string | null;
-        ok: boolean;
-        mode: "structured" | "prompted";
+        mode: "structured" | "legacy";
         prompt_chars: number;
         prompt_lines: number;
         output_chars: number | null;
         output_lines: number | null;
         duration_ms: number;
+        ok: boolean;
         error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
         error_exit_code: number | null;
     }[];
@@ -140,15 +140,15 @@ export declare const RoundMetricsSchema: z.ZodObject<{
         provider: string;
         model: string | null;
         effort: string | null;
-        ok: boolean;
+        mode: "structured" | "legacy";
         prompt_chars: number;
         prompt_lines: number;
         output_chars: number | null;
         output_lines: number | null;
         duration_ms: number;
+        ok: boolean;
         error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
         error_exit_code: number | null;
-        mode?: unknown;
     }[];
     revision_mode?: "edits" | "full" | null | undefined;
     planner_mode?: "external" | "inline" | undefined;

@@ -126,6 +126,16 @@ describe("recordRevisionHandler", () => {
     expect(payload.deferred).toBe(1);
     expect(payload.rejected).toBe(0);
     expect(payload.planner_mode).toBe("inline");
+    expect(payload.decision_rows).toHaveLength(2);
+    expect(payload.decision_rows[0]).toMatchObject({
+      issue_id: "F1",
+      severity: "P2",
+      title: "fix this",
+      decision: "accepted",
+      rationale: "valid concern",
+    });
+    expect(payload.display_markdown).toContain("Round 1 - Planner decisions");
+    expect(payload.display_markdown).toContain("| F1 | P2 | fix this | Accepted | valid concern |");
 
     // Response file written.
     const responseFile = join(
@@ -260,6 +270,26 @@ describe("recordRevisionHandler", () => {
     expect(stderrSpy).toHaveBeenCalledWith(
       expect.stringContaining("plan hash is unchanged"),
     );
+  });
+
+  it("surfaces no-plan-update warning in display_markdown", async () => {
+    const sessionId = seedSession();
+    const result = await recordRevisionHandler({
+      session_id: sessionId,
+      expected_round: 1,
+      responses: [
+        { issue_id: "F1", action: "accepted", rationale: "x" },
+        { issue_id: "F2", action: "rejected", rationale: "x" },
+      ],
+      cwd: tmpDir,
+    });
+
+    const payload = parseResponseJson(result);
+    expect(payload.display_markdown).toContain("Warning:");
+    expect(payload.display_markdown).toContain("plan hash is unchanged");
+    expect(payload.display_warnings).toEqual([
+      expect.stringContaining("plan hash is unchanged"),
+    ]);
   });
 
   it("is idempotent on duplicate calls with identical responses", async () => {

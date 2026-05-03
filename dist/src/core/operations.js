@@ -149,7 +149,7 @@ export function buildStatusLine(session, config, issueTrajectory, accepted, reje
  * Build and write the status line to the plan file.
  * Used by both CLI and MCP paths after each round.
  */
-export function writeStatusLineToPlan(session, cwd, config, suffix) {
+export function writeStatusLineToPlan(session, cwd, config, suffix, phaseExtras) {
     const planPath = resolve(cwd, session.planPath);
     let planContent = readFileSync(planPath, "utf-8");
     const stats = computeSessionStats(cwd, session.id, session.currentRound);
@@ -158,7 +158,7 @@ export function writeStatusLineToPlan(session, cwd, config, suffix) {
     const initialLines = session.initialLineCount ?? currentLines;
     const linesAdded = Math.max(0, currentLines - initialLines);
     const linesRemoved = Math.max(0, initialLines - currentLines);
-    const statusLine = buildStatusLine(session, config, stats.issueTrajectory, stats.totalAccepted, stats.totalRejected, stats.totalDeferred, linesAdded, linesRemoved, elapsed) + (suffix ? ` | ${suffix}` : "");
+    const statusLine = buildStatusLine(session, config, stats.issueTrajectory, stats.totalAccepted, stats.totalRejected, stats.totalDeferred, linesAdded, linesRemoved, elapsed, phaseExtras) + (suffix ? ` | ${suffix}` : "");
     planContent = updatePlanStatusLine(planContent, statusLine);
     writeFileSync(planPath, planContent);
     session.planHash = hashFile(planPath);
