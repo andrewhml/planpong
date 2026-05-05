@@ -7,6 +7,13 @@ import type { Provider, InvokeOptions, ProviderResponse, ProviderError } from ".
  * to the `-p` argument, so passing `-p ""` plus a stdin pipe works the same as
  * codex's `exec -` pattern: the model sees only the stdin content.
  *
+ * `--skip-trust` bypasses the "trusted folder" gate added in gemini CLI 0.32.
+ * Without it, gemini exits 55 in any directory the user has not interactively
+ * acknowledged as trusted, which would block planpong runs in fresh repos,
+ * temp directories, and CI shells. The alternative escape hatch is the
+ * `GEMINI_CLI_TRUST_WORKSPACE=true` env var; we prefer the explicit flag so
+ * the contract is visible in process listings and not coupled to env state.
+ *
  * Session resumption is not supported in v1 — `gemini --resume` accepts
  * indices and `latest`, not UUIDs, so `newSessionId`/`resumeSessionId` are
  * silently ignored. See the design doc at docs/plans/gemini-and-init-wizard.md

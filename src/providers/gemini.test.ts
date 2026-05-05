@@ -7,9 +7,9 @@ import {
 } from "./gemini.js";
 
 describe("buildArgs", () => {
-  it("emits -p with empty string and --output-format json by default", () => {
+  it("emits -p with empty string, --skip-trust, and --output-format json by default", () => {
     const args = buildArgs({ cwd: "/tmp" });
-    expect(args).toEqual(["-p", "", "--output-format", "json"]);
+    expect(args).toEqual(["-p", "", "--skip-trust", "--output-format", "json"]);
   });
 
   it("appends -m <model> when model is set", () => {
@@ -17,6 +17,7 @@ describe("buildArgs", () => {
     expect(args).toEqual([
       "-p",
       "",
+      "--skip-trust",
       "--output-format",
       "json",
       "-m",
@@ -30,12 +31,23 @@ describe("buildArgs", () => {
       newSessionId: "11111111-1111-1111-1111-111111111111",
       resumeSessionId: "22222222-2222-2222-2222-222222222222",
     });
-    expect(args).toEqual(["-p", "", "--output-format", "json"]);
+    expect(args).toEqual(["-p", "", "--skip-trust", "--output-format", "json"]);
   });
 
   it("ignores effort (gemini has no effort flag)", () => {
     const args = buildArgs({ cwd: "/tmp", effort: "high" });
-    expect(args).toEqual(["-p", "", "--output-format", "json"]);
+    expect(args).toEqual(["-p", "", "--skip-trust", "--output-format", "json"]);
+  });
+
+  it("always includes --skip-trust to bypass the CLI 0.32 trusted-folder gate", () => {
+    // Without --skip-trust, gemini CLI 0.32+ exits 55 in any directory the
+    // user has not interactively acknowledged as trusted, blocking planpong
+    // in fresh repos, temp dirs, and CI shells. Pin the flag's presence so
+    // a refactor of buildArgs cannot silently regress it.
+    expect(buildArgs({ cwd: "/tmp" })).toContain("--skip-trust");
+    expect(buildArgs({ cwd: "/tmp", model: "gemini-2.5-pro" })).toContain(
+      "--skip-trust",
+    );
   });
 });
 
