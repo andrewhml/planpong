@@ -1,14 +1,21 @@
 import type { Provider } from "./types.js";
 import { ClaudeProvider } from "./claude.js";
 import { CodexProvider } from "./codex.js";
+import { GeminiProvider } from "./gemini.js";
 
-const ALL_PROVIDERS: Provider[] = [new ClaudeProvider(), new CodexProvider()];
+const ALL_PROVIDERS: Provider[] = [
+  new ClaudeProvider(),
+  new CodexProvider(),
+  new GeminiProvider(),
+];
 
 const INSTALL_HINTS: Record<string, string> = {
   claude:
     "Install Claude Code: npm install -g @anthropic-ai/claude-code (requires Anthropic API key or Max subscription)",
   codex:
     "Install Codex CLI: npm install -g @openai/codex (requires OpenAI API key)",
+  gemini:
+    "Install Gemini CLI: npm install -g @google/gemini-cli, then run `gemini` once to complete Google account auth before invoking planpong.",
 };
 
 export async function getAvailableProviders(): Promise<Provider[]> {
