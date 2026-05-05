@@ -227,7 +227,7 @@ export class ClaudeProvider implements Provider {
       this.capabilityCache = supported;
       if (!supported) {
         process.stderr.write(
-          `[planpong] Structured output not supported by claude — using legacy parsing\n`,
+          `[planpong] Structured output not supported by claude — using prompted parsing\n`,
         );
       }
       return supported;

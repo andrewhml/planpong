@@ -279,7 +279,7 @@ describe("Invocation state machine via runReviewRound", () => {
     return { session: init.session, config, provider };
   }
 
-  it("structured success: invokes once, parses without legacy fallback", async () => {
+  it("structured success: invokes once, parses without prompted fallback", async () => {
     const provider = new MockProvider([
       {
         response: {
@@ -329,7 +329,7 @@ describe("Invocation state machine via runReviewRound", () => {
     // First call: structured (with schema, no wrapping)
     expect(provider.invokeCalls[0].options.jsonSchema).toBeDefined();
     expect(provider.invokeCalls[0].prompt).not.toContain("<planpong-feedback>");
-    // Second call: legacy (no schema, WITH wrapping) — F4 invariant
+    // Second call: prompted (no schema, WITH wrapping) — F4 invariant
     expect(provider.invokeCalls[1].options.jsonSchema).toBeUndefined();
     expect(provider.invokeCalls[1].prompt).toContain("<planpong-feedback>");
     expect(result.feedback.verdict).toBe("needs_revision");
@@ -414,11 +414,11 @@ describe("Invocation state machine via runReviewRound", () => {
     ]);
     const { session, config } = startSession(provider);
     await expect(runReviewRound(session, tmpDir, config, provider)).rejects.toThrow();
-    // Exactly 2 invocations: structured + legacy fallback
+    // Exactly 2 invocations: structured + prompted fallback
     expect(provider.invokeCalls).toHaveLength(2);
   });
 
-  it("provider without structured output support starts in legacy mode immediately", async () => {
+  it("provider without structured output support starts in prompted mode immediately", async () => {
     const provider = new MockProvider(
       [
         {
@@ -435,7 +435,7 @@ describe("Invocation state machine via runReviewRound", () => {
     const result = await runReviewRound(session, tmpDir, config, provider);
 
     expect(provider.invokeCalls).toHaveLength(1);
-    // Legacy mode: no schema, wrapping instructions present
+    // Prompted mode: no schema, wrapping instructions present
     expect(provider.invokeCalls[0].options.jsonSchema).toBeUndefined();
     expect(provider.invokeCalls[0].prompt).toContain("<planpong-feedback>");
     expect(result.feedback.verdict).toBe("needs_revision");
@@ -443,7 +443,7 @@ describe("Invocation state machine via runReviewRound", () => {
 
   it("provider invoke is never called more than once per state machine attempt (F7)", async () => {
     // Each scripted response represents exactly one provider invocation.
-    // The structured + legacy path uses 2 provider calls, period — no
+    // The structured + prompted path uses 2 provider calls, period — no
     // hidden internal retries.
     const provider = new MockProvider([
       {
@@ -542,7 +542,7 @@ describe("Metrics emission via runReviewRound", () => {
     expect(result.timing!.duration_ms).toBeGreaterThanOrEqual(0);
   });
 
-  it("capability downgrade: writes two attempts, structured fail then legacy ok", async () => {
+  it("capability downgrade: writes two attempts, structured fail then prompted ok", async () => {
     const provider = new MockProvider([
       {
         response: {
@@ -568,7 +568,7 @@ describe("Metrics emission via runReviewRound", () => {
     expect(metrics!.attempts[0].ok).toBe(false);
     expect(metrics!.attempts[0].error_kind).toBe("capability");
     expect(metrics!.attempts[0].error_exit_code).toBe(2);
-    expect(metrics!.attempts[1].mode).toBe("legacy");
+    expect(metrics!.attempts[1].mode).toBe("prompted");
     expect(metrics!.attempts[1].ok).toBe(true);
   });
 

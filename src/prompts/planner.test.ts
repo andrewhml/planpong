@@ -19,7 +19,7 @@ const feedback: ReviewFeedback = {
 };
 
 describe("buildRevisionPrompt structuredOutput flag", () => {
-  it("includes wrapping instructions when structuredOutput is false (legacy)", () => {
+  it("includes wrapping instructions when structuredOutput is false (prompted)", () => {
     const prompt = buildRevisionPrompt(plan, feedback, null, null, "detail", false);
     expect(prompt).toContain("<planpong-revision>");
     expect(prompt).toContain("</planpong-revision>");
@@ -49,7 +49,7 @@ describe("buildRevisionPrompt structuredOutput flag", () => {
     expect(prompt).toMatch(/first character.*must be `\{`/);
   });
 
-  it("defaults to legacy mode (structuredOutput=false) when omitted", () => {
+  it("defaults to prompted mode (structuredOutput=false) when omitted", () => {
     const prompt = buildRevisionPrompt(plan, feedback, null, null, "detail");
     expect(prompt).toContain("<planpong-revision>");
   });

@@ -32,7 +32,7 @@ describe("getReviewPhase", () => {
 describe("buildReviewPrompt structuredOutput flag", () => {
   const plan = "# Plan\n\n## Steps\n- Step 1";
 
-  it("includes wrapping instructions when structuredOutput is false (legacy)", () => {
+  it("includes wrapping instructions when structuredOutput is false (prompted)", () => {
     const prompt = buildReviewPrompt(plan, null, "detail", false);
     expect(prompt).toContain("<planpong-feedback>");
     expect(prompt).toContain("</planpong-feedback>");
@@ -62,7 +62,7 @@ describe("buildReviewPrompt structuredOutput flag", () => {
     expect(prompt).toMatch(/first character.*must be `\{`/);
   });
 
-  it("defaults to legacy mode (structuredOutput=false) when omitted", () => {
+  it("defaults to prompted mode (structuredOutput=false) when omitted", () => {
     const prompt = buildReviewPrompt(plan, null, "detail");
     expect(prompt).toContain("<planpong-feedback>");
   });

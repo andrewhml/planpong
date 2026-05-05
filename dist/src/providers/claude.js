@@ -192,7 +192,7 @@ export class ClaudeProvider {
             const supported = helpText.includes("--json-schema");
             this.capabilityCache = supported;
             if (!supported) {
-                process.stderr.write(`[planpong] Structured output not supported by claude — using legacy parsing\n`);
+                process.stderr.write(`[planpong] Structured output not supported by claude — using prompted parsing\n`);
             }
             return supported;
         }

@@ -794,7 +794,7 @@ describe("Evidence verification — parser pipeline", () => {
     expect(result.quote_compliance_warning).toBe(true);
   });
 
-  it("parseFeedbackForPhase (legacy) verifies quoted_text per issue", () => {
+  it("parseFeedbackForPhase (prompted) verifies quoted_text per issue", () => {
     const fb = detailFb([
       {
         id: "F1",

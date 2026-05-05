@@ -195,7 +195,7 @@ export function parseStructuredFeedbackForPhase(content, phase, planText = "") {
     if (!result.success) {
         throw new ZodValidationError(`Structured output failed Zod validation for ${phase} phase: ${result.error.message}`, result.error);
     }
-    // Apply blocked rationale validation (same rules as legacy path)
+    // Apply blocked rationale validation (same rules as prompted path)
     let feedback = result.data;
     if (phase === "direction" && feedback.verdict === "blocked") {
         const direction = feedback;

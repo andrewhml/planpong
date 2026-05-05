@@ -44,7 +44,7 @@ See `feat/diff-only-revisions` branch:
 - `src/schemas/revision.ts` — split `PlannerRevisionSchema` into direction (full plan) + edits revisions
 - `src/core/apply-edits.ts` — section-scoped edit applier with whitespace tolerance + status-line protection (14 unit tests)
 - `src/providers/claude.ts` — `--session-id` (create) / `--resume` (continue) wired to `InvokeOptions.newSessionId` / `resumeSessionId`
-- `src/providers/codex.ts` — `--json` event parsing for `thread_id` capture; `codex exec resume <id>` for resume; "unexpected argument" classified as capability error so resume mode auto-downgrades to legacy when the codex resume subcommand rejects `--output-schema`
+- `src/providers/codex.ts` — `--json` event parsing for `thread_id` capture; `codex exec resume <id>` for resume; "unexpected argument" classified as capability error so resume mode auto-downgrades to prompted when the codex resume subcommand rejects `--output-schema`
 - `src/core/operations.ts` — `runReviewRound` thread-state machine returns captured sessionId; reviewer session is initialized on first call, resumed on subsequent calls; round plan snapshots persist for diff-since-last-round prompts
 - `src/prompts/reviewer.ts` — new `buildIncrementalReviewPrompt` for resumed reviewer turns
 - `src/core/plan-diff.ts` — line-level LCS diff helper for the incremental prompts

@@ -59,7 +59,7 @@ export interface BaselineResult {
   durationMs: number;
   outputChars: number;
   rawOutput: string;
-  /** True when the provider produced JSON via --output-schema; false on legacy fallback. */
+  /** True when the provider produced JSON via --output-schema; false on prompted fallback. */
   structured: boolean;
 }
 
@@ -159,8 +159,8 @@ export async function runBaselineReview({
         structured: true,
       };
     } catch (err) {
-      // fall through to legacy extraction — some providers add stray prose
-      // even with structured output (claude has done this on edge cases).
+      // fall through to prompted-style extraction — some providers add stray
+      // prose even with structured output (claude has done this on edge cases).
       if (err instanceof StructuredOutputParseError) {
         // continue
       }
