@@ -40,7 +40,7 @@ function cleanEnv(): Record<string, string> {
  *   ...
  * }
  */
-function extractStructuredOutput(stdout: string): string | null {
+export function extractStructuredOutput(stdout: string): string | null {
   try {
     const envelope = JSON.parse(stdout);
     if (
@@ -63,7 +63,7 @@ function extractStructuredOutput(stdout: string): string | null {
  * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
  * requested structured output flag; fatal errors are everything else.
  */
-function classifyError(stderr: string, exitCode: number): ProviderError {
+export function classifyError(stderr: string, exitCode: number): ProviderError {
   const lower = stderr.toLowerCase();
   const capabilityIndicators = [
     "unknown flag",

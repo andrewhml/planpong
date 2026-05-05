@@ -1,4 +1,25 @@
-import type { Provider, InvokeOptions, ProviderResponse } from "./types.js";
+import type { Provider, InvokeOptions, ProviderResponse, ProviderError } from "./types.js";
+/**
+ * Parse claude's `--output-format json` envelope and extract the
+ * `structured_output` field as a JSON string ready for downstream parsing.
+ * Returns null if the envelope is malformed or the field is missing.
+ *
+ * Envelope shape (subset):
+ * {
+ *   "type": "result",
+ *   "is_error": false,
+ *   "result": "",
+ *   "structured_output": { ...model's constrained JSON... },
+ *   ...
+ * }
+ */
+export declare function extractStructuredOutput(stdout: string): string | null;
+/**
+ * Classify a CLI invocation failure as `capability` (downgrade-eligible) or
+ * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
+ * requested structured output flag; fatal errors are everything else.
+ */
+export declare function classifyError(stderr: string, exitCode: number): ProviderError;
 export declare class ClaudeProvider implements Provider {
     name: string;
     private capabilityCache;

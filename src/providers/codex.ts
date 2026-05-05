@@ -26,7 +26,7 @@ const EFFORT_LEVELS = ["low", "medium", "high", "xhigh"];
  * names like "output-schema:" in its info output, so substring matches on
  * the flag name alone produce false positives.
  */
-function extractCodexThreadId(stdout: string | undefined): string | undefined {
+export function extractCodexThreadId(stdout: string | undefined): string | undefined {
   if (!stdout) return undefined;
   // The first non-empty line of `codex exec --json` stdout is a
   // `thread.started` or `thread.resumed` event with `thread_id`. Scan
@@ -51,7 +51,7 @@ function extractCodexThreadId(stdout: string | undefined): string | undefined {
   return undefined;
 }
 
-function classifyError(stderr: string, exitCode: number): ProviderError {
+export function classifyError(stderr: string, exitCode: number): ProviderError {
   const lower = stderr.toLowerCase();
   const capabilityPatterns = [
     /\bunknown (?:flag|option|argument)\b/,
