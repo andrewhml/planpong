@@ -1,4 +1,5 @@
 node_modules/
 .planpong/
+.worktrees/
 bench/results/
 bench/quality/results/
