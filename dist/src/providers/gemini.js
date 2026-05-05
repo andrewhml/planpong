@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions } from "./shared.js";
+import { assertMutuallyExclusiveSessions, logClassificationFailure, } from "./shared.js";
 const MODELS = ["gemini-2.5-pro", "gemini-3-pro", "gemini-2.5-flash"];
 /**
  * Build argv for `gemini -p`. Pure function — no I/O.
@@ -118,6 +118,7 @@ export class GeminiProvider {
                     duration,
                 };
             }
+            logClassificationFailure(this.name, exitCode, result.stderr);
             return {
                 ok: false,
                 error: classifyError(result.stderr ?? "", exitCode),

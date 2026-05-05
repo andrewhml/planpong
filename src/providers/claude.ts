@@ -1,5 +1,8 @@
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions } from "./shared.js";
+import {
+  assertMutuallyExclusiveSessions,
+  logClassificationFailure,
+} from "./shared.js";
 import type {
   Provider,
   InvokeOptions,
@@ -174,9 +177,7 @@ export class ClaudeProvider implements Provider {
       }
 
       // No usable output — classify the failure
-      process.stderr.write(
-        `[claude-provider] exit=${exitCode} stderr=${result.stderr?.slice(0, 500)}\n`,
-      );
+      logClassificationFailure(this.name, exitCode, result.stderr);
       return {
         ok: false,
         error: classifyError(result.stderr ?? "", exitCode),

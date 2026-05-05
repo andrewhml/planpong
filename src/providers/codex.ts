@@ -3,7 +3,10 @@ import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions } from "./shared.js";
+import {
+  assertMutuallyExclusiveSessions,
+  logClassificationFailure,
+} from "./shared.js";
 import type {
   Provider,
   InvokeOptions,
@@ -179,6 +182,7 @@ export class CodexProvider implements Provider {
         return { ok: true, output: content, duration, sessionId };
       }
 
+      logClassificationFailure(this.name, exitCode, result.stderr);
       return {
         ok: false,
         error: classifyError(result.stderr ?? "", exitCode),

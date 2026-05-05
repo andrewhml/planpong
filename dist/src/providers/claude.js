@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions } from "./shared.js";
+import { assertMutuallyExclusiveSessions, logClassificationFailure, } from "./shared.js";
 const MODELS = ["opus", "sonnet", "haiku"];
 /**
  * Build a clean env object with CLAUDECODE removed.
@@ -144,7 +144,7 @@ export class ClaudeProvider {
                 return { ok: true, output: result.stdout, duration, sessionId };
             }
             // No usable output — classify the failure
-            process.stderr.write(`[claude-provider] exit=${exitCode} stderr=${result.stderr?.slice(0, 500)}\n`);
+            logClassificationFailure(this.name, exitCode, result.stderr);
             return {
                 ok: false,
                 error: classifyError(result.stderr ?? "", exitCode),
