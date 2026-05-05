@@ -68,7 +68,7 @@ export interface Provider {
   /**
    * Probe the underlying CLI to determine whether structured output is
    * supported. Result is cached for the session lifetime. If the probe
-   * fails or times out, returns false (use legacy path).
+   * fails or times out, returns false (use prompted path).
    */
   checkStructuredOutputSupport(): Promise<boolean>;
   /**

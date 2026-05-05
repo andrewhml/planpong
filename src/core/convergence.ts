@@ -233,7 +233,7 @@ export function parseStructuredFeedbackForPhase(
     );
   }
 
-  // Apply blocked rationale validation (same rules as legacy path)
+  // Apply blocked rationale validation (same rules as prompted path)
   let feedback = result.data as PhaseFeedback;
   if (phase === "direction" && feedback.verdict === "blocked") {
     const direction = feedback as DirectionFeedback;

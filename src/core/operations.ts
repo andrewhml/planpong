@@ -437,16 +437,17 @@ function buildPriorDecisions(
 /**
  * Invocation state machine — single owner of all retry/downgrade logic for
  * provider invocations. Providers are single-shot; this function decides
- * when to downgrade from structured output to legacy mode.
+ * when to downgrade from structured output (schema-enforced) to prompted
+ * output (tag-wrapped, prompt-enforced).
  *
- * Strict 2-attempt cap: structured (1) -> legacy fallback (1) -> terminal.
+ * Strict 2-attempt cap: structured (1) -> prompted fallback (1) -> terminal.
  *
  * Failure handling:
  * - Provider `capability` error in structured mode → downgrade
  * - Provider `fatal` error → terminal (no downgrade)
  * - JSON.parse failure on structured output → downgrade
  * - Zod validation failure on structured output → terminal (NOT retried)
- * - Any failure in legacy mode → terminal
+ * - Any failure in prompted mode → terminal
  *
  * Observability: when `metricsContext` is provided, each attempt emits a
  * start/end line to stderr, collects `InvocationAttempt` records, and
@@ -462,7 +463,7 @@ async function invokeWithStateMachine<T>(args: {
   jsonSchema: Record<string, unknown>;
   buildPrompt: (structuredOutput: boolean) => string;
   parseStructured: (output: string) => T;
-  parseLegacy: (output: string) => T;
+  parsePrompted: (output: string) => T;
   roundLabel: string;
   metricsContext?: MetricsContext;
 }): Promise<{
@@ -476,13 +477,13 @@ async function invokeWithStateMachine<T>(args: {
     jsonSchema,
     buildPrompt,
     parseStructured,
-    parseLegacy,
+    parsePrompted,
     roundLabel,
     metricsContext,
   } = args;
 
   const supported = await provider.checkStructuredOutputSupport();
-  let mode: "structured" | "legacy" = supported ? "structured" : "legacy";
+  let mode: "structured" | "prompted" = supported ? "structured" : "prompted";
   let attempt = 0;
   const maxAttempts = 2;
   let lastError: Error | null = null;
@@ -597,10 +598,10 @@ async function invokeWithStateMachine<T>(args: {
           attempt < maxAttempts
         ) {
           provider.markNonCapable();
-          mode = "legacy";
+          mode = "prompted";
           continue;
         }
-        // Fatal, or already in legacy mode — terminal
+        // Fatal, or already in prompted mode — terminal
         throw new Error(
           `${roundLabel} failed (exit ${response.error.exitCode}, ${response.error.kind}):\n${response.error.message}`,
         );
@@ -616,7 +617,7 @@ async function invokeWithStateMachine<T>(args: {
         const parsed =
           mode === "structured"
             ? parseStructured(response.output)
-            : parseLegacy(response.output);
+            : parsePrompted(response.output);
         attemptRecord.ok = true;
         attempts.push(attemptRecord);
         logEnd(
@@ -679,11 +680,11 @@ async function invokeWithStateMachine<T>(args: {
             metricsContext,
           );
           provider.markNonCapable();
-          mode = "legacy";
+          mode = "prompted";
           continue;
         }
 
-        // Legacy parse failure — terminal
+        // Prompted parse failure — terminal
         attemptRecord.ok = false;
         attemptRecord.error_kind = "parse";
         attempts.push(attemptRecord);
@@ -740,7 +741,7 @@ function safeStderr(line: string): void {
 function logStart(
   roundLabel: string,
   providerLabel: string,
-  mode: "structured" | "legacy",
+  mode: "structured" | "prompted",
   promptChars: number,
   ctx: MetricsContext | undefined,
 ): void {
@@ -753,7 +754,7 @@ function logStart(
 function logEnd(
   roundLabel: string,
   providerLabel: string,
-  mode: "structured" | "legacy",
+  mode: "structured" | "prompted",
   promptChars: number,
   outputChars: number | null,
   durationMs: number,
@@ -846,7 +847,7 @@ export async function runReviewRound(
         : buildReviewPrompt(planContent, priorDecisions, phase, structuredOutput),
     parseStructured: (output) =>
       parseStructuredFeedbackForPhase(output, phase, planContent),
-    parseLegacy: (output) => parseFeedbackForPhase(output, phase, planContent),
+    parsePrompted: (output) => parseFeedbackForPhase(output, phase, planContent),
     roundLabel: `Round ${round} review`,
     metricsContext: {
       sessionId: session.id,
@@ -946,7 +947,7 @@ export async function runRevisionRound(
         config.revision_mode,
       ),
     parseStructured: (output) => parseStructuredRevision(output, revisionShape),
-    parseLegacy: (output) => parseRevision(output, revisionShape),
+    parsePrompted: (output) => parseRevision(output, revisionShape),
     roundLabel: `Round ${round} revision`,
     metricsContext: {
       sessionId: session.id,
@@ -1326,7 +1327,7 @@ async function runEditsRetry(args: RunEditsRetryArgs): Promise<RunEditsRetryResu
   const response = await plannerProvider.invoke(prompt, options);
 
   const attemptRecord: InvocationAttempt = {
-    mode: useStructured ? "structured" : "legacy",
+    mode: useStructured ? "structured" : "prompted",
     provider: plannerProvider.name,
     model: config.planner.model ?? null,
     effort: config.planner.effort ?? null,

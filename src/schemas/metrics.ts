@@ -1,7 +1,22 @@
 import { z } from "zod";
 
+// Schema-enforcement mode for a single provider invocation:
+// - "structured": output shape was constrained at the API level via the
+//   provider's schema flag (`--json-schema`, `--output-schema`).
+// - "prompted": output shape was requested through prompt instructions
+//   wrapped in `<planpong-feedback>` / `<planpong-revision>` tags, then
+//   extracted and parsed. Used when the provider lacks a schema flag
+//   (e.g., gemini) or after a structured-mode failure downgrades.
+//
+// Reads accept the historical name `"legacy"` and normalize it to
+// `"prompted"` so metrics files written before the rename still parse.
+const InvocationModeSchema = z.preprocess(
+  (value) => (value === "legacy" ? "prompted" : value),
+  z.enum(["structured", "prompted"]),
+);
+
 export const InvocationAttemptSchema = z.object({
-  mode: z.enum(["structured", "legacy"]),
+  mode: InvocationModeSchema,
   provider: z.string(),
   model: z.string().nullable(),
   effort: z.string().nullable(),
@@ -13,7 +28,7 @@ export const InvocationAttemptSchema = z.object({
   ok: z.boolean(),
   // `edit-retry` marks the targeted retry pass for failed edits in
   // edits-mode revisions. It is not a state-machine downgrade — the
-  // structured/legacy mode is captured in `mode` independently.
+  // structured/prompted mode is captured in `mode` independently.
   error_kind: z
     .enum(["capability", "fatal", "parse", "zod", "edit-retry"])
     .nullable(),

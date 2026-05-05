@@ -229,7 +229,7 @@ export class CodexProvider implements Provider {
       this.capabilityCache = supported;
       if (!supported) {
         process.stderr.write(
-          `[planpong] Structured output not supported by codex — using legacy parsing\n`,
+          `[planpong] Structured output not supported by codex — using prompted parsing\n`,
         );
       }
       return supported;
