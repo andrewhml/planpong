@@ -9,7 +9,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setConfigValue, isValidKey, getValidKeys } from "./mutate.js";
+import {
+  setConfigValue,
+  setConfigValuesBatch,
+  isValidKey,
+  getValidKeys,
+} from "./mutate.js";
 
 describe("setConfigValue", () => {
   let tmpDir: string;
@@ -355,5 +360,117 @@ describe("findConfigPath", () => {
     writeFileSync(join(tmpDir, "planpong.yml"), "max_rounds: 5\n");
     const { findConfigPath } = await import("./loader.js");
     expect(findConfigPath(tmpDir)).toBe(join(tmpDir, "planpong.yaml"));
+  });
+});
+
+describe("setConfigValuesBatch", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "planpong-batch-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("writes multiple keys in a single yaml document", () => {
+    writeFileSync(join(tmpDir, "planpong.yaml"), "max_rounds: 5\n");
+    const result = setConfigValuesBatch(tmpDir, [
+      { key: "planner.provider", rawValue: "gemini" },
+      { key: "planner.model", rawValue: "gemini-2.5-pro" },
+      { key: "max_rounds", rawValue: "8" },
+    ]);
+    expect(result.results).toHaveLength(3);
+    const written = readFileSync(join(tmpDir, "planpong.yaml"), "utf-8");
+    expect(written).toContain("provider: gemini");
+    expect(written).toContain("model: gemini-2.5-pro");
+    expect(written).toContain("max_rounds: 8");
+  });
+
+  it("preserves existing keys not in the picks list", () => {
+    writeFileSync(
+      join(tmpDir, "planpong.yaml"),
+      "max_rounds: 12\nplans_dir: plans\n",
+    );
+    setConfigValuesBatch(tmpDir, [
+      { key: "planner.provider", rawValue: "claude" },
+    ]);
+    const written = readFileSync(join(tmpDir, "planpong.yaml"), "utf-8");
+    expect(written).toContain("max_rounds: 12");
+    expect(written).toContain("plans_dir: plans");
+    expect(written).toContain("provider: claude");
+  });
+
+  it("creates the file when it does not exist", () => {
+    expect(existsSync(join(tmpDir, "planpong.yaml"))).toBe(false);
+    const result = setConfigValuesBatch(tmpDir, [
+      { key: "planner.provider", rawValue: "claude" },
+      { key: "reviewer.provider", rawValue: "codex" },
+    ]);
+    expect(result.created).toBe(true);
+    expect(existsSync(join(tmpDir, "planpong.yaml"))).toBe(true);
+  });
+
+  it("aborts the entire batch when any pick fails validation — leaves file byte-identical", () => {
+    const original = "max_rounds: 7\n";
+    writeFileSync(join(tmpDir, "planpong.yaml"), original);
+    expect(() =>
+      setConfigValuesBatch(tmpDir, [
+        { key: "planner.provider", rawValue: "claude" },
+        { key: "max_rounds", rawValue: "999" }, // out of range — schema rejects
+      ]),
+    ).toThrow(/Invalid value/);
+    expect(readFileSync(join(tmpDir, "planpong.yaml"), "utf-8")).toBe(original);
+  });
+
+  it("aborts when an unknown key is in the batch — leaves file byte-identical", () => {
+    const original = "max_rounds: 4\n";
+    writeFileSync(join(tmpDir, "planpong.yaml"), original);
+    expect(() =>
+      setConfigValuesBatch(tmpDir, [
+        { key: "planner.provider", rawValue: "claude" },
+        { key: "totally.bogus", rawValue: "x" },
+      ]),
+    ).toThrow(/Unknown config key/);
+    expect(readFileSync(join(tmpDir, "planpong.yaml"), "utf-8")).toBe(original);
+  });
+
+  it("returns per-pick before/after in the same order", () => {
+    writeFileSync(
+      join(tmpDir, "planpong.yaml"),
+      "max_rounds: 3\nplanner:\n  provider: claude\n",
+    );
+    const result = setConfigValuesBatch(tmpDir, [
+      { key: "max_rounds", rawValue: "9" },
+      { key: "planner.provider", rawValue: "codex" },
+    ]);
+    expect(result.results[0]).toMatchObject({
+      key: "max_rounds",
+      before: 3,
+      after: 9,
+    });
+    expect(result.results[1]).toMatchObject({
+      key: "planner.provider",
+      before: "claude",
+      after: "codex",
+    });
+  });
+
+  it("an empty picks list is a no-op (no file write)", () => {
+    const original = "max_rounds: 6\n";
+    writeFileSync(join(tmpDir, "planpong.yaml"), original);
+    const result = setConfigValuesBatch(tmpDir, []);
+    expect(result.results).toHaveLength(0);
+    expect(readFileSync(join(tmpDir, "planpong.yaml"), "utf-8")).toBe(original);
+  });
+
+  it("setConfigValue still works after refactor (regression)", () => {
+    writeFileSync(join(tmpDir, "planpong.yaml"), "max_rounds: 4\n");
+    const result = setConfigValue(tmpDir, "planner.provider", "claude");
+    expect(result.after).toBe("claude");
+    const written = readFileSync(join(tmpDir, "planpong.yaml"), "utf-8");
+    expect(written).toContain("provider: claude");
+    expect(written).toContain("max_rounds: 4");
   });
 });

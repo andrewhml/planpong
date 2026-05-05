@@ -18,14 +18,18 @@ You need at least **one AI CLI** installed and authenticated:
 
 - **Claude Code** — `npm install -g @anthropic-ai/claude-code` (Anthropic API key or Max subscription)
 - **Codex CLI** — `npm install -g @openai/codex` (OpenAI API key)
+- **Gemini CLI** — `npm install -g @google/gemini-cli` (Google account auth — run `gemini` once to authenticate)
 
-If both are installed, planpong uses one for planning and the other for reviewing (configurable). If only one is available, it auto-fallbacks to using that CLI for both roles.
+If multiple are installed, planpong uses one for planning and a different one for reviewing (configurable). If only one is available, it auto-fallbacks to using that CLI for both roles.
+
+> **Note on gemini as reviewer:** the gemini CLI does not expose a stable session-resume mechanism, so reviewer rounds run without persistent context. Expect noticeably slower per-round wall time than claude or codex when gemini is the reviewer. The first time you load a config that selects gemini as reviewer, planpong prints a one-line warning to stderr.
 
 Verify your CLI works:
 
 ```sh
 claude --version   # or
-codex --version
+codex --version    # or
+gemini --version
 ```
 
 Planpong shells out to these CLIs — no API keys are configured in planpong itself.
@@ -35,6 +39,14 @@ Planpong shells out to these CLIs — no API keys are configured in planpong its
 ```sh
 npm install -g planpong
 ```
+
+Then run the interactive setup wizard:
+
+```sh
+planpong init
+```
+
+The wizard auto-detects which AI CLIs you have installed, lets you pick a planner + reviewer, and writes a working `planpong.yaml` for the current project. You can re-run it any time to tweak settings — only changed keys are written.
 
 ## Setup (Claude Code MCP)
 
@@ -81,11 +93,11 @@ planpong review docs/plans/my-feature.md
 
 ## Configuration
 
-Optional. Create `planpong.yaml` in your project root:
+Optional. Run `planpong init` to generate this interactively, or create `planpong.yaml` in your project root by hand:
 
 ```yaml
 planner:
-  provider: claude # claude or codex
+  provider: claude # claude, codex, or gemini
   model: claude-opus-4-6 # provider-specific model name
   effort: high # reasoning effort level
 reviewer:
