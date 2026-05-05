@@ -10,6 +10,7 @@ import {
   formatTrajectory,
   severityFromFeedback,
 } from "../../core/operations.js";
+import { getRoundState, type RoundNextAction } from "../../core/round-state.js";
 
 const inputSchema = {
   session_id: z.string().describe("Session ID to check"),
@@ -56,6 +57,11 @@ export function registerStatus(server: McpServer): void {
         edits_failed?: number;
         edits_recovered?: number;
         retry_invoked?: boolean;
+        feedback_written?: boolean;
+        response_written?: boolean;
+        next_action?: RoundNextAction;
+        incomplete_transition?: boolean;
+        inconsistent_artifacts?: boolean;
       }> = [];
 
       const severities: Array<{ P1: number; P2: number; P3: number }> = [];
@@ -64,7 +70,11 @@ export function registerStatus(server: McpServer): void {
         const fb = readRoundFeedback(cwd, session.id, r);
         const resp = readRoundResponse(cwd, session.id, r);
 
-        const roundInfo: (typeof rounds)[0] = { round: r };
+        const roundInfo: (typeof rounds)[0] = {
+          round: r,
+          feedback_written: fb !== null,
+          response_written: resp !== null,
+        };
 
         if (fb) {
           roundInfo.feedback_summary = fb.summary;
@@ -107,6 +117,16 @@ export function registerStatus(server: McpServer): void {
         rounds.push(roundInfo);
       }
 
+      const roundState = getRoundState(cwd, session);
+      if (session.currentRound > 0 && rounds.length > 0) {
+        const current = rounds.find((r) => r.round === session.currentRound);
+        if (current) {
+          current.next_action = roundState.nextAction;
+          current.incomplete_transition = roundState.incompleteTransition;
+          current.inconsistent_artifacts = roundState.inconsistentArtifacts;
+        }
+      }
+
       const trajectory =
         severities.length > 0
           ? formatTrajectory(severities)
@@ -125,6 +145,9 @@ export function registerStatus(server: McpServer): void {
                 started_at: session.startedAt,
                 planner: session.planner,
                 reviewer: session.reviewer,
+                next_action: roundState.nextAction,
+                incomplete_transition: roundState.incompleteTransition,
+                inconsistent_artifacts: roundState.inconsistentArtifacts,
               },
               rounds,
               trajectory,

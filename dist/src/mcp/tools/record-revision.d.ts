@@ -10,11 +10,5 @@ export declare function recordRevisionHandler(input: {
         type: "text";
         text: string;
     }[];
-    isError: boolean;
-} | {
-    content: {
-        type: "text";
-        text: string;
-    }[];
 }>;
 export declare function registerRecordRevision(server: McpServer): void;

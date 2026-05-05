@@ -29,7 +29,7 @@ When the user asks you to review a plan:
 3. Show the user the status_line and the display_markdown table from the tool response exactly. Do not replace the issue table with a prose-only summary. The table is the canonical per-issue feedback view (note: round 1 is directional review).
 4. If is_converged is false, advance the round depending on planner_mode:
    - **inline mode (default):** YOU are the planner. After showing the pending issue table, edit the plan with your own Edit/Write tools, then call planpong_record_revision with one response per issue (issue_id, action: "accepted" | "rejected" | "deferred", rationale). Pass expected_round equal to the round number from the feedback. The tool logs your responses, updates the plan hash, and advances the bookkeeping — no provider invocation.
-   - **external mode:** call planpong_revise. The planner provider produces the revision and applies it to disk.
+   - **external mode:** call planpong_revise with expected_round equal to the round number from the feedback. The planner provider produces the revision and applies it to disk.
 5. Show the user the revision status_line and display_markdown decision table from planpong_record_revision or planpong_revise. Do not replace the decision table with a prose-only accepted/rejected/deferred summary.
 6. Repeat steps 2-5 until converged or max rounds reached
 

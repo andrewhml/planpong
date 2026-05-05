@@ -1005,3 +1005,181 @@ describe("finalizeRevision", () => {
     expect(second.accepted).toBe(1);
   });
 });
+
+// --- finalizeFeedback shared helper ---
+
+describe("finalizeFeedback", () => {
+  let tmpDir: string;
+  let planPath: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "planpong-feedback-finalize-"));
+    mkdirSync(join(tmpDir, "docs", "plans"), { recursive: true });
+    planPath = join(tmpDir, "docs", "plans", "plan.md");
+    writeFileSync(planPath, "# Plan\n\nbody\n");
+  });
+
+  afterEach(() => {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function makeFeedback(verdict: ReviewFeedback["verdict"] = "needs_revision"): ReviewFeedback {
+    return {
+      verdict,
+      summary: "needs work",
+      issues: [
+        {
+          id: "F1",
+          severity: "P2",
+          section: "Steps",
+          title: "missing step",
+          description: "x",
+          suggestion: "y",
+        },
+      ],
+    };
+  }
+
+  it("writes round-N-feedback.json and returns fresh: true", async () => {
+    const ops = await import("./operations.js");
+    const session = sessionModule.createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      "hash",
+    );
+    session.status = "in_review";
+    session.currentRound = 1;
+    sessionModule.writeSessionState(tmpDir, session);
+
+    const feedback = makeFeedback();
+    const result = ops.finalizeFeedback({
+      session,
+      cwd: tmpDir,
+      round: 1,
+      feedback,
+      reviewerSessionInited: true,
+    });
+
+    expect(result.fresh).toBe(true);
+    expect(result.feedback).toEqual(feedback);
+    const persisted = sessionModule.readRoundFeedback(tmpDir, session.id, 1);
+    expect(persisted).toEqual(feedback);
+  });
+
+  it("promotes captured reviewer session ID on the first round", async () => {
+    const ops = await import("./operations.js");
+    const session = sessionModule.createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      "hash",
+    );
+    session.status = "in_review";
+    session.currentRound = 1;
+    session.reviewerSessionInitialized = false;
+    session.reviewerSessionId = "placeholder";
+    sessionModule.writeSessionState(tmpDir, session);
+
+    ops.finalizeFeedback({
+      session,
+      cwd: tmpDir,
+      round: 1,
+      feedback: makeFeedback(),
+      reviewerSessionInited: false,
+      capturedSessionId: "thread-abc",
+    });
+
+    expect(session.reviewerSessionInitialized).toBe(true);
+    expect(session.reviewerSessionId).toBe("thread-abc");
+    const reread = sessionModule.readSessionState(tmpDir, session.id);
+    expect(reread?.reviewerSessionInitialized).toBe(true);
+    expect(reread?.reviewerSessionId).toBe("thread-abc");
+  });
+
+  it("marks session blocked when verdict is blocked", async () => {
+    const ops = await import("./operations.js");
+    const session = sessionModule.createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      "hash",
+    );
+    session.status = "in_review";
+    session.currentRound = 1;
+    sessionModule.writeSessionState(tmpDir, session);
+
+    ops.finalizeFeedback({
+      session,
+      cwd: tmpDir,
+      round: 1,
+      feedback: makeFeedback("blocked"),
+      reviewerSessionInited: true,
+    });
+
+    expect(session.status).toBe("blocked");
+    const reread = sessionModule.readSessionState(tmpDir, session.id);
+    expect(reread?.status).toBe("blocked");
+  });
+
+  it("is idempotent on duplicate calls (existing feedback)", async () => {
+    const ops = await import("./operations.js");
+    const session = sessionModule.createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      "hash",
+    );
+    session.status = "in_review";
+    session.currentRound = 1;
+    sessionModule.writeSessionState(tmpDir, session);
+
+    const original = makeFeedback();
+    sessionModule.writeRoundFeedback(tmpDir, session.id, 1, original);
+
+    const result = ops.finalizeFeedback({
+      session,
+      cwd: tmpDir,
+      round: 1,
+      feedback: makeFeedback("blocked"),
+      reviewerSessionInited: false,
+      capturedSessionId: "should-be-ignored",
+    });
+
+    expect(result.fresh).toBe(false);
+    expect(result.feedback).toEqual(original);
+    // Existing feedback wins; session state must NOT be mutated.
+    expect(session.status).toBe("in_review");
+    expect(session.reviewerSessionInitialized).toBeUndefined();
+  });
+
+  it("does NOT advance currentRound", async () => {
+    const ops = await import("./operations.js");
+    const session = sessionModule.createSession(
+      tmpDir,
+      "docs/plans/plan.md",
+      { provider: "claude" },
+      { provider: "codex" },
+      "hash",
+    );
+    session.status = "in_review";
+    session.currentRound = 2;
+    sessionModule.writeSessionState(tmpDir, session);
+
+    ops.finalizeFeedback({
+      session,
+      cwd: tmpDir,
+      round: 2,
+      feedback: makeFeedback(),
+      reviewerSessionInited: true,
+    });
+
+    expect(session.currentRound).toBe(2);
+    const reread = sessionModule.readSessionState(tmpDir, session.id);
+    expect(reread?.currentRound).toBe(2);
+  });
+});

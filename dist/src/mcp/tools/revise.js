@@ -1,11 +1,16 @@
 import { z } from "zod";
 import { loadConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
-import { readRoundFeedback, readSessionState } from "../../core/session.js";
+import { readRoundFeedback, readRoundResponse, readSessionState, withSessionLock, } from "../../core/session.js";
 import { runRevisionRound, writeStatusLineToPlan, } from "../../core/operations.js";
 import { formatDecisionDisplay } from "../../core/presentation.js";
 const inputSchema = {
     session_id: z.string().describe("Session ID from planpong_start_review"),
+    expected_round: z
+        .number()
+        .int()
+        .positive()
+        .describe("The feedback round this revision responds to. Must equal session.currentRound."),
     cwd: z
         .string()
         .optional()
@@ -13,124 +18,141 @@ const inputSchema = {
 };
 export async function reviseHandler(input) {
     const cwd = input.cwd ?? process.cwd();
-    const session = readSessionState(cwd, input.session_id);
-    if (!session) {
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify({
-                        error: `Session not found: ${input.session_id}`,
-                    }),
-                },
-            ],
-            isError: true,
-        };
+    const existing = readSessionState(cwd, input.session_id);
+    if (!existing) {
+        return errorResponse(`Session not found: ${input.session_id}`);
     }
-    if (session.status !== "in_review") {
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify({
-                        error: `Session status is '${session.status}', expected 'in_review'`,
-                    }),
-                },
-            ],
-            isError: true,
-        };
-    }
-    if (session.plannerMode === "inline") {
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify({
-                        error: "session is in inline planner mode — use planpong_record_revision instead",
-                        planner_mode: "inline",
-                    }),
-                },
-            ],
-            isError: true,
-        };
-    }
-    const config = loadConfig({ cwd });
-    const plannerProvider = getProvider(session.planner.provider);
-    if (!plannerProvider) {
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: JSON.stringify({
-                        error: `Planner provider not found: ${session.planner.provider}`,
-                    }),
-                },
-            ],
-            isError: true,
-        };
-    }
-    const sessionConfig = {
-        ...config,
-        planner: session.planner,
-        reviewer: session.reviewer,
-    };
-    const result = await runRevisionRound(session, cwd, sessionConfig, plannerProvider);
-    // Update status line in plan file (planner may have mangled it)
-    const statusLine = writeStatusLineToPlan(session, cwd, sessionConfig, "Revision submitted");
-    // Count rejections whose rationale matches "unverified evidence".
-    // Free-text matching is intentionally lenient; the planner prompt
-    // suggests the exact phrase but accepts variants (the plan flags
-    // this in Limitations & Future Work — a structured enum is a
-    // follow-up).
-    const unverifiedRejected = result.revision.responses.filter((r) => r.action === "rejected" &&
-        /unverified\s+evidence/i.test(r.rationale ?? "")).length;
-    const payload = {
-        round: result.round,
-        responses: result.revision.responses,
-        accepted: result.accepted,
-        rejected: result.rejected,
-        deferred: result.deferred,
-        unverified_rejected: unverifiedRejected,
-        plan_updated: result.planUpdated,
-        status_line: statusLine,
-    };
-    const feedback = readRoundFeedback(cwd, session.id, result.round);
-    if (feedback) {
-        const display = formatDecisionDisplay({
-            round: result.round,
-            feedback,
-            revision: result.revision,
-        });
-        payload.decision_rows = display.rows;
-        payload.display_markdown = display.markdown;
-        if (display.warnings.length > 0) {
-            payload.display_warnings = display.warnings;
+    return withSessionLock(cwd, input.session_id, async () => {
+        const session = readSessionState(cwd, input.session_id);
+        if (!session) {
+            return errorResponse(`Session not found: ${input.session_id}`);
         }
+        if (input.expected_round < session.currentRound) {
+            return errorResponse(`stale revision call for round ${input.expected_round}; current round is ${session.currentRound}`, {
+                expected_round: input.expected_round,
+                current_round: session.currentRound,
+            });
+        }
+        if (input.expected_round > session.currentRound) {
+            return errorResponse(`out-of-order revision call for round ${input.expected_round}; call planpong_get_feedback first`, {
+                expected_round: input.expected_round,
+                current_round: session.currentRound,
+            });
+        }
+        if (session.status !== "in_review") {
+            return errorResponse(`Session status is '${session.status}', expected 'in_review'`);
+        }
+        if (session.plannerMode === "inline") {
+            return errorResponse("session is in inline planner mode — use planpong_record_revision instead", { planner_mode: "inline" });
+        }
+        const config = loadConfig({ cwd });
+        const sessionConfig = {
+            ...config,
+            planner: session.planner,
+            reviewer: session.reviewer,
+        };
+        const feedback = readRoundFeedback(cwd, session.id, input.expected_round);
+        if (!feedback) {
+            return errorResponse(`No feedback found for session ${session.id} round ${input.expected_round}. Call planpong_get_feedback first.`);
+        }
+        const existingResponse = readRoundResponse(cwd, session.id, input.expected_round);
+        if (existingResponse) {
+            const tally = tallyResponses(existingResponse.responses);
+            const statusLine = writeStatusLineToPlan(session, cwd, sessionConfig, "Revision submitted");
+            return buildRevisionResponse({
+                round: input.expected_round,
+                revision: existingResponse,
+                accepted: tally.accepted,
+                rejected: tally.rejected,
+                deferred: tally.deferred,
+                planUpdated: false,
+                statusLine,
+                feedback,
+                idempotentReplay: true,
+            });
+        }
+        const plannerProvider = getProvider(session.planner.provider);
+        if (!plannerProvider) {
+            return errorResponse(`Planner provider not found: ${session.planner.provider}`);
+        }
+        const result = await runRevisionRound(session, cwd, sessionConfig, plannerProvider);
+        // Update status line in plan file (planner may have mangled it)
+        const statusLine = writeStatusLineToPlan(session, cwd, sessionConfig, "Revision submitted");
+        return buildRevisionResponse({
+            ...result,
+            statusLine,
+            feedback,
+            idempotentReplay: false,
+        });
+    });
+}
+function tallyResponses(responses) {
+    let accepted = 0;
+    let rejected = 0;
+    let deferred = 0;
+    for (const response of responses) {
+        if (response.action === "accepted")
+            accepted++;
+        else if (response.action === "rejected")
+            rejected++;
+        else if (response.action === "deferred")
+            deferred++;
     }
-    if (result.timing) {
-        payload.timing = result.timing;
+    return { accepted, rejected, deferred };
+}
+function buildRevisionResponse(args) {
+    const unverifiedRejected = args.revision.responses.filter((r) => r.action === "rejected" &&
+        /unverified\s+evidence/i.test(r.rationale ?? "")).length;
+    const display = formatDecisionDisplay({
+        round: args.round,
+        feedback: args.feedback,
+        revision: args.revision,
+    });
+    const payload = {
+        round: args.round,
+        responses: args.revision.responses,
+        accepted: args.accepted,
+        rejected: args.rejected,
+        deferred: args.deferred,
+        unverified_rejected: unverifiedRejected,
+        plan_updated: args.planUpdated,
+        status_line: args.statusLine,
+        idempotent_replay: args.idempotentReplay,
+        decision_rows: display.rows,
+        display_markdown: display.markdown,
+    };
+    if (display.warnings.length > 0) {
+        payload.display_warnings = display.warnings;
     }
-    if (result.edits) {
-        payload.revision_mode = result.edits.revision_mode;
-        if (result.edits.revision_mode === "edits") {
-            payload.edits_attempted = result.edits.edits_attempted;
-            payload.edits_applied = result.edits.edits_applied;
-            payload.edits_failed = result.edits.edits_failed;
-            payload.edits_recovered = result.edits.edits_recovered;
-            payload.retry_invoked = result.edits.retry_invoked;
+    if (args.timing) {
+        payload.timing = args.timing;
+    }
+    if (args.edits) {
+        payload.revision_mode = args.edits.revision_mode;
+        if (args.edits.revision_mode === "edits") {
+            payload.edits_attempted = args.edits.edits_attempted;
+            payload.edits_applied = args.edits.edits_applied;
+            payload.edits_failed = args.edits.edits_failed;
+            payload.edits_recovered = args.edits.edits_recovered;
+            payload.retry_invoked = args.edits.retry_invoked;
         }
     }
     return {
         content: [
+            { type: "text", text: args.statusLine },
+            { type: "text", text: JSON.stringify(payload) },
+        ],
+    };
+}
+function errorResponse(error, extra = {}) {
+    return {
+        content: [
             {
                 type: "text",
-                text: statusLine,
-            },
-            {
-                type: "text",
-                text: JSON.stringify(payload),
+                text: JSON.stringify({ error, ...extra }),
             },
         ],
+        isError: true,
     };
 }
 export function registerRevise(server) {
