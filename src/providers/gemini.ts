@@ -1,4 +1,5 @@
 import { execa } from "execa";
+import { assertMutuallyExclusiveSessions } from "./shared.js";
 import type {
   Provider,
   InvokeOptions,
@@ -108,6 +109,8 @@ export class GeminiProvider implements Provider {
     prompt: string,
     options: InvokeOptions,
   ): Promise<ProviderResponse> {
+    assertMutuallyExclusiveSessions(this.name, options);
+
     const args = buildArgs(options);
     const start = Date.now();
     try {

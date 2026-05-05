@@ -3,6 +3,7 @@ import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
+import { assertMutuallyExclusiveSessions } from "./shared.js";
 const MODELS = ["gpt-5.3-codex", "o3-pro", "o3", "o4-mini"];
 const EFFORT_LEVELS = ["low", "medium", "high", "xhigh"];
 /**
@@ -62,6 +63,7 @@ export class CodexProvider {
     name = "codex";
     capabilityCache = null;
     async invoke(prompt, options) {
+        assertMutuallyExclusiveSessions(this.name, options);
         // codex doesn't accept an externally-generated session UUID. The first
         // call always creates a fresh thread; we capture `thread_id` from the
         // `--json` event stream on stdout and the caller persists it. Resume

@@ -1,4 +1,5 @@
 import { execa } from "execa";
+import { assertMutuallyExclusiveSessions } from "./shared.js";
 const MODELS = ["gemini-2.5-pro", "gemini-3-pro", "gemini-2.5-flash"];
 /**
  * Build argv for `gemini -p`. Pure function — no I/O.
@@ -87,6 +88,7 @@ export function classifyError(stderr, exitCode) {
 export class GeminiProvider {
     name = "gemini";
     async invoke(prompt, options) {
+        assertMutuallyExclusiveSessions(this.name, options);
         const args = buildArgs(options);
         const start = Date.now();
         try {
