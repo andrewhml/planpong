@@ -57,48 +57,56 @@ function getNestedValue(obj, key) {
     }
     return current;
 }
-export function setConfigValue(cwd, key, rawValue, opts) {
-    if (!isValidKey(key)) {
-        throw new Error(`Unknown config key: "${key}". Valid keys: ${VALID_KEYS.join(", ")}`);
+/**
+ * Apply many key/value picks to the project's planpong.yaml in one atomic
+ * write. Validates every pick (key allowlist, type coercion, merged-config
+ * schema) before any disk mutation, so a failing pick aborts the entire
+ * batch with the on-disk file byte-identical to its prior state.
+ *
+ * The single-key `setConfigValue` is a thin wrapper over this; the wizard
+ * flow calls this directly with all picks accumulated in memory.
+ */
+export function setConfigValuesBatch(cwd, picks, opts) {
+    for (const p of picks) {
+        if (!isValidKey(p.key)) {
+            throw new Error(`Unknown config key: "${p.key}". Valid keys: ${VALID_KEYS.join(", ")}`);
+        }
     }
-    const value = coerceValue(key, rawValue);
     const existingPath = findConfigPath(cwd);
     const configPath = existingPath ?? join(cwd, "planpong.yaml");
     const created = !existingPath;
+    if (picks.length === 0) {
+        return { configPath, created: false, results: [] };
+    }
     const raw = existingPath ? readFileSync(existingPath, "utf-8") : "";
     const doc = parseDocument(raw);
-    const parts = key.split(".");
-    const before = getNestedValue(doc.toJSON() ?? {}, key);
-    if (parts.length === 1) {
-        doc.set(parts[0], value);
-    }
-    else {
-        let node = doc.get(parts[0], true);
-        if (node == null || typeof node !== "object" || !("set" in node)) {
-            doc.set(parts[0], { [parts[1]]: value });
+    const beforeJson = doc.toJSON() ?? {};
+    const testConfig = { ...loadConfig({ cwd }).valueOf() };
+    const results = [];
+    for (const p of picks) {
+        const value = coerceValue(p.key, p.rawValue);
+        const before = getNestedValue(beforeJson, p.key);
+        results.push({ key: p.key, before, after: value });
+        const parts = p.key.split(".");
+        doc.setIn(parts, value);
+        if (parts.length === 1) {
+            testConfig[parts[0]] = value;
         }
         else {
-            node.set(parts[1], value);
+            const section = testConfig[parts[0]] ?? {};
+            section[parts[1]] = value;
+            testConfig[parts[0]] = section;
         }
-    }
-    // Validate the full merged config would be valid
-    const merged = doc.toJSON();
-    const testConfig = { ...loadConfig({ cwd }).valueOf() };
-    if (parts.length === 1) {
-        testConfig[parts[0]] = value;
-    }
-    else {
-        const section = testConfig[parts[0]] ?? {};
-        section[parts[1]] = value;
-        testConfig[parts[0]] = section;
     }
     try {
         PlanpongConfigSchema.parse(testConfig);
     }
     catch (err) {
         if (err instanceof ZodError) {
-            const msg = err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-            throw new Error(`Invalid value for "${key}": ${msg}`);
+            const msg = err.issues
+                .map((i) => `${i.path.join(".")}: ${i.message}`)
+                .join("; ");
+            throw new Error(`Invalid value for batch: ${msg}`);
         }
         throw err;
     }
@@ -108,12 +116,17 @@ export function setConfigValue(cwd, key, rawValue, opts) {
         writeFileSync(tmpPath, output, "utf-8");
         renameSync(tmpPath, configPath);
     }
+    return { configPath, created, results };
+}
+export function setConfigValue(cwd, key, rawValue, opts) {
+    const batch = setConfigValuesBatch(cwd, [{ key, rawValue }], opts);
+    const r = batch.results[0];
     return {
-        configPath,
-        key,
-        before,
-        after: value,
-        created,
+        configPath: batch.configPath,
+        key: r.key,
+        before: r.before,
+        after: r.after,
+        created: batch.created,
     };
 }
 //# sourceMappingURL=mutate.js.map

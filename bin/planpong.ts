@@ -6,6 +6,7 @@ import { Command } from "commander";
 import { registerPlanCommand } from "../src/cli/commands/plan.js";
 import { registerReviewCommand } from "../src/cli/commands/review.js";
 import { registerConfigCommand } from "../src/cli/commands/config.js";
+import { registerInitCommand } from "../src/cli/commands/init.js";
 
 // Read version from the installed package.json so `planpong --version`
 // always reflects the actual installed version. Hardcoding it here
@@ -53,6 +54,7 @@ program
     "after",
     `
 Quick reference:
+  planpong init                Interactive first-run setup wizard
   planpong config              Show current config values and sources
   planpong config keys         List all settings with valid values and defaults
   planpong config get <key>    Get a single setting
@@ -65,5 +67,6 @@ Quick reference:
 registerPlanCommand(program);
 registerReviewCommand(program);
 registerConfigCommand(program);
+registerInitCommand(program);
 
 program.parse();

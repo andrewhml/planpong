@@ -28,7 +28,8 @@
     "adversarial",
     "ai-agents",
     "claude",
-    "codex"
+    "codex",
+    "gemini"
   ],
   "repository": {
     "type": "git",
