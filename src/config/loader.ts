@@ -7,6 +7,27 @@ import {
 } from "../schemas/config.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 
+let geminiReviewerWarningFired = false;
+
+/**
+ * Reset the gemini-reviewer-warning gate. Test-only — the gate is a process-
+ * lifetime singleton in production so the warning fires exactly once.
+ */
+export function __resetGeminiReviewerWarningForTesting(): void {
+  geminiReviewerWarningFired = false;
+}
+
+function maybeEmitGeminiReviewerWarning(config: PlanpongConfig): void {
+  if (geminiReviewerWarningFired) return;
+  if (config.reviewer.provider !== "gemini") return;
+  geminiReviewerWarningFired = true;
+  process.stderr.write(
+    "warning: gemini reviewer rounds run without persistent session resumption.\n" +
+      "         expect noticeably slower per-round wall time than claude/codex.\n" +
+      "         tracked: see Future work in docs/plans/gemini-and-init-wizard.md\n",
+  );
+}
+
 const CONFIG_FILENAMES = [
   "planpong.yaml",
   "planpong.yml",
@@ -119,5 +140,7 @@ export function loadConfig(options: LoadConfigOptions): PlanpongConfig {
       DEFAULT_CONFIG.planner_mode,
   };
 
-  return PlanpongConfigSchema.parse(merged);
+  const parsed = PlanpongConfigSchema.parse(merged);
+  maybeEmitGeminiReviewerWarning(parsed);
+  return parsed;
 }
