@@ -16,13 +16,20 @@ const MODELS = ["gemini-2.5-pro", "gemini-3-pro", "gemini-2.5-flash"];
  * to the `-p` argument, so passing `-p ""` plus a stdin pipe works the same as
  * codex's `exec -` pattern: the model sees only the stdin content.
  *
+ * `--skip-trust` bypasses the "trusted folder" gate added in gemini CLI 0.32.
+ * Without it, gemini exits 55 in any directory the user has not interactively
+ * acknowledged as trusted, which would block planpong runs in fresh repos,
+ * temp directories, and CI shells. The alternative escape hatch is the
+ * `GEMINI_CLI_TRUST_WORKSPACE=true` env var; we prefer the explicit flag so
+ * the contract is visible in process listings and not coupled to env state.
+ *
  * Session resumption is not supported in v1 — `gemini --resume` accepts
  * indices and `latest`, not UUIDs, so `newSessionId`/`resumeSessionId` are
  * silently ignored. See the design doc at docs/plans/gemini-and-init-wizard.md
  * (Future Work item #2) for the deferred follow-up.
  */
 export function buildArgs(options: InvokeOptions): string[] {
-  const args = ["-p", "", "--output-format", "json"];
+  const args = ["-p", "", "--skip-trust", "--output-format", "json"];
   if (options.model) {
     args.push("-m", options.model);
   }
