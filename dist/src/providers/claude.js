@@ -1,4 +1,5 @@
 import { execa } from "execa";
+import { assertMutuallyExclusiveSessions } from "./shared.js";
 const MODELS = ["opus", "sonnet", "haiku"];
 /**
  * Build a clean env object with CLAUDECODE removed.
@@ -71,6 +72,7 @@ export class ClaudeProvider {
     name = "claude";
     capabilityCache = null;
     async invoke(prompt, options) {
+        assertMutuallyExclusiveSessions(this.name, options);
         // claude -p reads prompt from stdin when no positional arg is given.
         // --bare skips hooks/MCP/auto-memory/CLAUDE.md/plugin-sync for faster
         // subprocess startup, but it bypasses OAuth/keychain — only safe to use
@@ -93,12 +95,10 @@ export class ClaudeProvider {
             args.push("--model", options.model);
         }
         // Persistent conversation. `--session-id` creates a new session with the
-        // given UUID; `--resume` continues an existing one. Caller must use one
-        // or the other, never both. Lets us drop heavy "current plan + prior
-        // decisions" stuffing on round 2+ since the model retains context.
-        if (options.newSessionId && options.resumeSessionId) {
-            throw new Error("claude provider: newSessionId and resumeSessionId are mutually exclusive");
-        }
+        // given UUID; `--resume` continues an existing one. Mutual exclusion is
+        // enforced at the top of invoke() via assertMutuallyExclusiveSessions.
+        // Lets us drop heavy "current plan + prior decisions" stuffing on round
+        // 2+ since the model retains context.
         if (options.newSessionId) {
             args.push("--session-id", options.newSessionId);
         }
