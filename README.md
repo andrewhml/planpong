@@ -17,12 +17,12 @@ The planner model evaluates each piece of feedback independently — accepting, 
 You need at least **one AI CLI** installed and authenticated:
 
 - **Claude Code** — `npm install -g @anthropic-ai/claude-code` (Anthropic API key or Max subscription)
-- **Codex CLI** — `npm install -g @openai/codex` (OpenAI API key)
+- **Codex CLI** — `npm install -g @openai/codex` (ChatGPT account or OpenAI API key)
 - **Gemini CLI** — `npm install -g @google/gemini-cli` (Google account auth — run `gemini` once to authenticate)
 
 If multiple are installed, planpong uses one for planning and a different one for reviewing (configurable). If only one is available, it auto-fallbacks to using that CLI for both roles.
 
-> **Note on gemini as reviewer:** the gemini CLI does not expose a stable session-resume mechanism, so reviewer rounds run without persistent context. Expect noticeably slower per-round wall time than claude or codex when gemini is the reviewer. The first time you load a config that selects gemini as reviewer, planpong prints a one-line warning to stderr.
+> **Note on gemini as reviewer:** the gemini CLI does not expose a stable session-resume mechanism, so reviewer rounds run without persistent context. Expect noticeably slower per-round wall time than claude or codex when gemini is the reviewer. The first time you load a config that selects gemini as reviewer, planpong prints a stderr warning.
 
 Verify your CLI works:
 
@@ -101,17 +101,18 @@ Optional. Run `planpong init` to generate this interactively, or create `planpon
 ```yaml
 planner:
   provider: claude # claude, codex, or gemini
-  model: claude-opus-4-6 # provider-specific model name
-  effort: high # reasoning effort level
+  model: opus # provider-specific; aliases or full IDs both work
 reviewer:
   provider: codex
   model: gpt-5.3-codex
-  effort: xhigh
+  effort: xhigh # codex-only knob: low | medium | high | xhigh
 max_rounds: 10
 plans_dir: docs/plans
 revision_mode: full # full or edits
 planner_mode: inline # inline or external (see below)
 ```
+
+> Valid `model` and `effort` values are provider-specific and change as providers ship new versions. Run `planpong config providers` to see the current per-provider lists, or `planpong init` for an interactive picker — don't copy the values above verbatim.
 
 All fields are optional. Defaults: claude (planner) + codex (reviewer), 10 rounds, `docs/plans/` directory, `planner_mode: inline`, `revision_mode: full`, `human_in_loop: true`.
 
@@ -130,6 +131,7 @@ Inline is the right default for the Claude-Code-as-orchestrator workflow; extern
 planpong config              # show resolved config with source annotations
 planpong config path         # print path to active config file
 planpong config keys         # list all keys with valid values, types, and defaults
+planpong config providers    # list per-provider model and effort values
 planpong config get <key>    # print a single resolved value
 planpong config set <key> <value>   # set a config value
 ```
