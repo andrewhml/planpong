@@ -15,7 +15,7 @@ const EFFORT_LEVELS = ["low", "medium", "high", "xhigh"];
  * names like "output-schema:" in its info output, so substring matches on
  * the flag name alone produce false positives.
  */
-function extractCodexThreadId(stdout) {
+export function extractCodexThreadId(stdout) {
     if (!stdout)
         return undefined;
     // The first non-empty line of `codex exec --json` stdout is a
@@ -40,7 +40,7 @@ function extractCodexThreadId(stdout) {
     }
     return undefined;
 }
-function classifyError(stderr, exitCode) {
+export function classifyError(stderr, exitCode) {
     const lower = stderr.toLowerCase();
     const capabilityPatterns = [
         /\bunknown (?:flag|option|argument)\b/,

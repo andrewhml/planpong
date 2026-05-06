@@ -28,7 +28,7 @@ function cleanEnv() {
  *   ...
  * }
  */
-function extractStructuredOutput(stdout) {
+export function extractStructuredOutput(stdout) {
     try {
         const envelope = JSON.parse(stdout);
         if (envelope &&
@@ -49,7 +49,7 @@ function extractStructuredOutput(stdout) {
  * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
  * requested structured output flag; fatal errors are everything else.
  */
-function classifyError(stderr, exitCode) {
+export function classifyError(stderr, exitCode) {
     const lower = stderr.toLowerCase();
     const capabilityIndicators = [
         "unknown flag",
