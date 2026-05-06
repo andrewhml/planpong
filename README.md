@@ -81,8 +81,11 @@ Review my plan at docs/plans/my-feature.md using planpong
 Or use the slash commands (auto-installed with the MCP server):
 
 ```
-/planpong:review docs/plans/my-feature.md              # autonomous — runs to completion
-/planpong:review_interactive docs/plans/my-feature.md   # pauses between rounds for your input
+/planpong:review docs/plans/my-feature.md             # autonomous — runs to completion
+/planpong:review_interactive docs/plans/my-feature.md # pauses between rounds for your input
+/planpong:status <session_id>                         # current state and round history
+/planpong:sessions                                    # list all review sessions in this project
+/planpong:report <session_id>                         # detailed phase-specific report (direction confidence, risk register, round history)
 ```
 
 ### Via CLI
@@ -107,28 +110,40 @@ reviewer:
 max_rounds: 10
 plans_dir: docs/plans
 revision_mode: full # full or edits
-planner_mode: external # external or inline
+planner_mode: inline # inline or external (see below)
 ```
 
-All fields are optional. Defaults: claude (planner) + codex (reviewer), 10 rounds, `docs/plans/` directory.
+All fields are optional. Defaults: claude (planner) + codex (reviewer), 10 rounds, `docs/plans/` directory, `planner_mode: inline`, `revision_mode: full`, `human_in_loop: true`.
+
+### Planner mode: inline vs external
+
+`planner_mode` is the most consequential operational choice. It decides who actually rewrites the plan after each round of feedback:
+
+- **`inline` (default)** — when you're driving planpong from Claude Code, *you* are the planner. Planpong returns the reviewer's issues; Claude reads the plan, edits it directly, and reports its accept/reject/defer decisions back via `planpong_record_revision`. No second model is invoked, so revisions are fast and use the conversational context Claude already has.
+- **`external`** — planpong shells out to the configured planner provider (e.g. another `claude -p` or `codex exec` invocation) to produce the revision. Use this when running planpong outside Claude Code (CLI flow), or when you want a different model to plan than the one orchestrating.
+
+Inline is the right default for the Claude-Code-as-orchestrator workflow; external is the right default for `planpong review` from a plain shell.
 
 ### Viewing and changing config
 
 ```sh
 planpong config              # show resolved config with source annotations
 planpong config path         # print path to active config file
+planpong config keys         # list all keys with valid values, types, and defaults
+planpong config get <key>    # print a single resolved value
 planpong config set <key> <value>   # set a config value
 ```
 
 Examples:
 
 ```sh
-planpong config set reviewer.model gpt-5.3-codex
+planpong config set reviewer.provider gemini
+planpong config set reviewer.model gemini-2.5-pro
 planpong config set max_rounds 5
 planpong config set planner_mode inline
 ```
 
-Valid keys: `planner.provider`, `planner.model`, `planner.effort`, `reviewer.provider`, `reviewer.model`, `reviewer.effort`, `plans_dir`, `max_rounds`, `human_in_loop`, `revision_mode`, `planner_mode`.
+Valid keys: `planner.provider`, `planner.model`, `planner.effort`, `reviewer.provider`, `reviewer.model`, `reviewer.effort`, `plans_dir`, `max_rounds`, `human_in_loop`, `revision_mode`, `planner_mode`. Run `planpong config keys` for the canonical list with descriptions.
 
 ### Config via MCP
 
@@ -136,6 +151,16 @@ Two MCP tools are available for programmatic config access:
 
 - **`planpong_get_config`** — returns resolved config, file path, version, and per-key source provenance
 - **`planpong_set_config`** — dry-run by default (`confirm: false`); pass `confirm: true` to write
+
+### MCP API notes
+
+Planpong's MCP tools are designed to be safe under retries, duplicated calls, and orchestrator restarts:
+
+- **`planpong_revise` and `planpong_record_revision` require `expected_round`.** Pass the round number returned by the most recent `planpong_get_feedback`. Stale calls (round mismatched lower) and out-of-order calls (mismatched higher) return precise errors instead of double-charging the planner.
+- **Tool calls are replay-safe.** Calling `planpong_get_feedback` twice before the round's revision returns the existing feedback with `idempotent_replay: true` instead of re-invoking the reviewer. The same applies to `planpong_revise` and `planpong_record_revision` when the round's response artifact already exists.
+- **Per-session lock.** Mutating MCP tools acquire an exclusive lock at `.planpong/sessions/<id>/lock` so two overlapping clients cannot both advance the same session.
+
+Most users driving planpong through Claude Code never see these primitives — the slash commands and the orchestrator's instructions handle them. They matter if you're building an external MCP client.
 
 ## What it produces
 
