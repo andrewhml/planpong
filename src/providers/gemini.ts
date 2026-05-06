@@ -1,5 +1,8 @@
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions } from "./shared.js";
+import {
+  assertMutuallyExclusiveSessions,
+  logClassificationFailure,
+} from "./shared.js";
 import type {
   Provider,
   InvokeOptions,
@@ -142,6 +145,7 @@ export class GeminiProvider implements Provider {
         };
       }
 
+      logClassificationFailure(this.name, exitCode, result.stderr);
       return {
         ok: false,
         error: classifyError(result.stderr ?? "", exitCode),

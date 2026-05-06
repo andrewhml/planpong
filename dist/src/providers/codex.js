@@ -3,7 +3,7 @@ import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions } from "./shared.js";
+import { assertMutuallyExclusiveSessions, logClassificationFailure, } from "./shared.js";
 const MODELS = ["gpt-5.3-codex", "o3-pro", "o3", "o4-mini"];
 const EFFORT_LEVELS = ["low", "medium", "high", "xhigh"];
 /**
@@ -147,6 +147,7 @@ export class CodexProvider {
                 const sessionId = extractCodexThreadId(result.stdout);
                 return { ok: true, output: content, duration, sessionId };
             }
+            logClassificationFailure(this.name, exitCode, result.stderr);
             return {
                 ok: false,
                 error: classifyError(result.stderr ?? "", exitCode),
