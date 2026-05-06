@@ -50,6 +50,7 @@ Quick reference:
   planpong init                Interactive first-run setup wizard
   planpong config              Show current config values and sources
   planpong config keys         List all settings with valid values and defaults
+  planpong config providers    List per-provider model and effort values
   planpong config get <key>    Get a single setting
   planpong config set <key> <value>  Change a setting
 

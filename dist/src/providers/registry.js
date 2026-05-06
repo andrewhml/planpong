@@ -8,7 +8,7 @@ const ALL_PROVIDERS = [
 ];
 const INSTALL_HINTS = {
     claude: "Install Claude Code: npm install -g @anthropic-ai/claude-code (requires Anthropic API key or Max subscription)",
-    codex: "Install Codex CLI: npm install -g @openai/codex (requires OpenAI API key)",
+    codex: "Install Codex CLI: npm install -g @openai/codex (ChatGPT account or OpenAI API key)",
     gemini: "Install Gemini CLI: npm install -g @google/gemini-cli, then run `gemini` once to complete Google account auth before invoking planpong.",
 };
 export async function getAvailableProviders() {

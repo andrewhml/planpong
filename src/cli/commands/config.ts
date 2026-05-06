@@ -3,6 +3,7 @@ import type { Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { loadConfig, findConfigPath } from "../../config/loader.js";
 import { setConfigValue, getValidKeys, getKeyMetadata, getKeyMeta } from "../../config/mutate.js";
+import { getAllProviders } from "../../providers/registry.js";
 
 function formatKeyList(): string {
   return getKeyMetadata()
@@ -50,6 +51,11 @@ export function registerConfigCommand(program: Command): void {
     .command("keys")
     .description("List all config keys with descriptions, valid values, and defaults")
     .action(() => printKeysTable());
+
+  configCmd
+    .command("providers")
+    .description("List providers with their valid model and effort values")
+    .action(() => printProvidersTable());
 
   configCmd
     .command("path")
@@ -134,6 +140,27 @@ function printKeysTable(): void {
       m.description,
     );
   }
+  console.log(
+    "\nFor per-provider model and effort values, run 'planpong config providers'.",
+  );
+}
+
+function printProvidersTable(): void {
+  const providers = getAllProviders();
+  for (const p of providers) {
+    const models = p.getModels();
+    const efforts = p.getEffortLevels();
+    console.log(p.name);
+    console.log(`  models:  ${models.length > 0 ? models.join(", ") : "(none enumerated)"}`);
+    console.log(`  effort:  ${efforts.length > 0 ? efforts.join(", ") : "(none enumerated)"}`);
+    console.log();
+  }
+  console.log(
+    "Note: providers may accept additional model IDs not listed here (e.g. newly-released versions).",
+  );
+  console.log(
+    "Run 'planpong init' for an interactive picker against the same lists.",
+  );
 }
 
 function showConfig(): void {
