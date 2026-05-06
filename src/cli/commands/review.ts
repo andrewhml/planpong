@@ -38,16 +38,16 @@ export function registerReviewCommand(program: Command): void {
     .command("review")
     .description("Review an existing plan file through adversarial refinement")
     .argument("<plan-file>", "Path to the plan markdown file")
-    .option("--planner-provider <provider>", "Planner provider (claude, codex)")
-    .option("--planner-model <model>", "Planner model override")
-    .option("--planner-effort <effort>", "Planner effort level")
+    .option("--planner-provider <provider>", "Planner provider (claude, codex, gemini)")
+    .option("--planner-model <model>", "Planner model override (see 'planpong config providers')")
+    .option("--planner-effort <effort>", "Planner effort level (see 'planpong config providers')")
     .option(
       "--reviewer-provider <provider>",
-      "Reviewer provider (claude, codex)",
+      "Reviewer provider (claude, codex, gemini)",
     )
-    .option("--reviewer-model <model>", "Reviewer model override")
-    .option("--reviewer-effort <effort>", "Reviewer effort level")
-    .option("--max-rounds <n>", "Maximum review rounds")
+    .option("--reviewer-model <model>", "Reviewer model override (see 'planpong config providers')")
+    .option("--reviewer-effort <effort>", "Reviewer effort level (see 'planpong config providers')")
+    .option("--max-rounds <n>", "Maximum review rounds (1-50)")
     .option(
       "--autonomous",
       "Run without human-in-loop pauses (default for review)",

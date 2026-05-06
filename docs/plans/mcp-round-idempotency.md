@@ -1,7 +1,6 @@
 # MCP Round Idempotency
 
-**Status:** Draft
-**planpong:** R0/10 | claude(claude-opus-4-6/high) → codex(gpt-5.3-codex/xhigh) | Awaiting review
+**Status:** Shipped — unreviewed (PR [#48](https://github.com/andrewhml/planpong/pull/48), commit `98d27e0`)
 
 ## Context
 
