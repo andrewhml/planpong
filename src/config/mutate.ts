@@ -14,12 +14,12 @@ export interface KeyMeta {
 }
 
 const KEY_METADATA: KeyMeta[] = [
-  { key: "planner.provider", description: "AI provider for plan revisions", values: "string (e.g. claude, codex)", default: "claude" },
-  { key: "planner.model", description: "Model name for the planner", values: "string", default: "(provider default)" },
-  { key: "planner.effort", description: "Effort/quality level for the planner", values: "string", default: "(provider default)" },
-  { key: "reviewer.provider", description: "AI provider for plan review", values: "string (e.g. claude, codex)", default: "codex" },
-  { key: "reviewer.model", description: "Model name for the reviewer", values: "string", default: "(provider default)" },
-  { key: "reviewer.effort", description: "Effort/quality level for the reviewer", values: "string", default: "(provider default)" },
+  { key: "planner.provider", description: "AI provider for plan revisions", values: "claude | codex | gemini", default: "claude" },
+  { key: "planner.model", description: "Model name for the planner", values: "string (provider-specific)", default: "(provider default)" },
+  { key: "planner.effort", description: "Effort/quality level for the planner", values: "string (provider-specific)", default: "(provider default)" },
+  { key: "reviewer.provider", description: "AI provider for plan review", values: "claude | codex | gemini", default: "codex" },
+  { key: "reviewer.model", description: "Model name for the reviewer", values: "string (provider-specific)", default: "(provider default)" },
+  { key: "reviewer.effort", description: "Effort/quality level for the reviewer", values: "string (provider-specific)", default: "(provider default)" },
   { key: "plans_dir", description: "Directory for plan files", values: "path", default: "docs/plans" },
   { key: "max_rounds", description: "Maximum review rounds before stopping", values: "1–50", default: "10" },
   { key: "human_in_loop", description: "Pause for user confirmation between rounds", values: "true | false", default: "true" },

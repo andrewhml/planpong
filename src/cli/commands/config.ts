@@ -3,7 +3,43 @@ import type { Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { loadConfig, findConfigPath } from "../../config/loader.js";
 import { setConfigValue, getValidKeys, getKeyMetadata, getKeyMeta } from "../../config/mutate.js";
-import { getAllProviders } from "../../providers/registry.js";
+import { getAllProviders, getProvider } from "../../providers/registry.js";
+
+/**
+ * Soft-validate a config value against the enumerated lists in the provider
+ * registry. Returns a warning string if the value isn't recognized, or null
+ * if it's known (or there's nothing to check against).
+ *
+ * Soft because providers accept newer model IDs that may not be in the
+ * hardcoded MODELS array — we want to nudge typos without blocking power
+ * users from setting valid-but-unenumerated values.
+ */
+export function getUnknownValueWarning(
+  key: string,
+  value: string,
+  providerForRole: string | undefined,
+): string | null {
+  if (key === "planner.provider" || key === "reviewer.provider") {
+    const valid = getAllProviders().map((p) => p.name);
+    if (valid.includes(value)) return null;
+    return `Warning: "${value}" is not a known provider. Known: ${valid.join(", ")}.`;
+  }
+  const isModel = key === "planner.model" || key === "reviewer.model";
+  const isEffort = key === "planner.effort" || key === "reviewer.effort";
+  if (!isModel && !isEffort) return null;
+  if (!providerForRole) return null;
+  const provider = getProvider(providerForRole);
+  if (!provider) return null;
+  const valid = isModel ? provider.getModels() : provider.getEffortLevels();
+  if (valid.length === 0) return null;
+  if (valid.includes(value)) return null;
+  const what = isModel ? "model" : "effort level";
+  return (
+    `Warning: "${value}" is not in ${providerForRole}'s known ${what} list ` +
+    `(${valid.join(", ")}). The provider may still accept it. ` +
+    `Run 'planpong config providers' to see current lists.`
+  );
+}
 
 function formatKeyList(): string {
   return getKeyMetadata()
@@ -108,6 +144,19 @@ export function registerConfigCommand(program: Command): void {
           console.log(
             `\n  Warning: effective value is "${String(effectiveVal)}" (overridden by CLI flag)`,
           );
+        }
+
+        // Soft-validate the value against the provider registry. We don't
+        // reject because providers accept additional model IDs beyond the
+        // enumerated lists — but a typo deserves a nudge.
+        const role = parts[0];
+        const providerForRole =
+          role === "planner" || role === "reviewer"
+            ? (effective[role as "planner" | "reviewer"] as { provider?: string } | undefined)?.provider
+            : undefined;
+        const warning = getUnknownValueWarning(key, value, providerForRole);
+        if (warning) {
+          console.error(`\n  ${warning}`);
         }
       } catch (err) {
         console.error(`Error: ${(err as Error).message}`);

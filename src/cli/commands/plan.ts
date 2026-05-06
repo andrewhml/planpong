@@ -38,17 +38,17 @@ export function registerPlanCommand(program: Command): void {
     .description("Generate and review a plan through adversarial refinement")
     .argument("<requirements>", "Requirements text or path to a .md/.txt file")
     .option("--name <name>", "Plan filename slug (auto-generated if omitted)")
-    .option("--planner-provider <provider>", "Planner provider (claude, codex)")
-    .option("--planner-model <model>", "Planner model override")
-    .option("--planner-effort <effort>", "Planner effort level")
+    .option("--planner-provider <provider>", "Planner provider (claude, codex, gemini)")
+    .option("--planner-model <model>", "Planner model override (see 'planpong config providers')")
+    .option("--planner-effort <effort>", "Planner effort level (see 'planpong config providers')")
     .option(
       "--reviewer-provider <provider>",
-      "Reviewer provider (claude, codex)",
+      "Reviewer provider (claude, codex, gemini)",
     )
-    .option("--reviewer-model <model>", "Reviewer model override")
-    .option("--reviewer-effort <effort>", "Reviewer effort level")
+    .option("--reviewer-model <model>", "Reviewer model override (see 'planpong config providers')")
+    .option("--reviewer-effort <effort>", "Reviewer effort level (see 'planpong config providers')")
     .option("--plans-dir <dir>", "Plans output directory")
-    .option("--max-rounds <n>", "Maximum review rounds")
+    .option("--max-rounds <n>", "Maximum review rounds (1-50)")
     .option("--autonomous", "Run without human-in-loop pauses")
     .action(async (requirementsArg: string, opts: PlanOptions) => {
       printBanner();
