@@ -260,6 +260,26 @@ export function formatPhaseExtras(
   return parts.join(" | ");
 }
 
+export function phaseExtrasFromFeedback(
+  phase: ReturnType<typeof getReviewPhase>,
+  feedback: PhaseFeedback,
+): PhaseExtras {
+  const phaseExtras: PhaseExtras = {};
+  if (feedback.verdict === "blocked") {
+    phaseExtras.is_blocked = true;
+  }
+  if (phase === "direction" && "confidence" in feedback) {
+    phaseExtras.confidence = (feedback as DirectionFeedback).confidence;
+  }
+  if (phase === "risk" && "risk_level" in feedback) {
+    const riskFb = feedback as RiskFeedback;
+    phaseExtras.risk_level = riskFb.risk_level;
+    phaseExtras.risk_count = riskFb.risks?.length ?? 0;
+    phaseExtras.risks_promoted = feedback.issues.length;
+  }
+  return phaseExtras;
+}
+
 export function buildStatusLine(
   session: Session,
   config: PlanpongConfig,
@@ -306,6 +326,7 @@ export function writeStatusLineToPlan(
   cwd: string,
   config: PlanpongConfig,
   suffix?: string,
+  phaseExtras?: PhaseExtras,
 ): string {
   const planPath = resolve(cwd, session.planPath);
   let planContent = readFileSync(planPath, "utf-8");
@@ -328,6 +349,7 @@ export function writeStatusLineToPlan(
       linesAdded,
       linesRemoved,
       elapsed,
+      phaseExtras,
     ) + (suffix ? ` | ${suffix}` : "");
 
   planContent = updatePlanStatusLine(planContent, statusLine);
@@ -789,6 +811,20 @@ export async function runReviewRound(
   const planContent = readFileSync(planPath, "utf-8");
 
   const phase = getReviewPhase(round);
+  const existingFeedback = readRoundFeedback(cwd, session.id, round);
+  if (existingFeedback) {
+    const severity = severityFromFeedback(existingFeedback);
+    const converged = isConverged(existingFeedback);
+    const phaseExtras = phaseExtrasFromFeedback(phase, existingFeedback);
+    return {
+      round,
+      feedback: existingFeedback,
+      severity,
+      converged,
+      phaseExtras,
+    };
+  }
+
   const priorDecisions = buildPriorDecisions(cwd, session.id, round);
   // Persist a snapshot of the plan as the reviewer is about to see it. On
   // round N+1 we'll diff against this snapshot to produce the incremental
@@ -857,40 +893,104 @@ export async function runReviewRound(
     },
   });
 
-  writeRoundFeedback(cwd, session.id, round, feedback);
-  const severity = severityFromFeedback(feedback);
-  const converged = isConverged(feedback);
+  const finalized = finalizeFeedback({
+    session,
+    cwd,
+    round,
+    feedback,
+    reviewerSessionInited,
+    capturedSessionId,
+  });
+  const severity = severityFromFeedback(finalized.feedback);
+  const converged = isConverged(finalized.feedback);
+  const phaseExtras = phaseExtrasFromFeedback(phase, finalized.feedback);
   const timing = metrics ? summarizeTiming(metrics) : undefined;
 
-  // Persist the canonical reviewer session ID. For claude this is the
-  // UUID we generated; for codex it's the thread_id captured from --json
-  // output. Either way, future rounds resume this conversation.
+  return {
+    round,
+    feedback: finalized.feedback,
+    severity,
+    converged,
+    phaseExtras,
+    timing,
+  };
+}
+
+// --- Shared review finalization ---
+
+export interface FinalizeFeedbackInput {
+  session: Session;
+  cwd: string;
+  round: number;
+  feedback: PhaseFeedback;
+  /** True when the reviewer session was already established before this round. */
+  reviewerSessionInited: boolean;
+  /** Captured reviewer session/thread ID from this round's invocation. */
+  capturedSessionId?: string;
+}
+
+export interface FinalizeFeedbackResult {
+  feedback: PhaseFeedback;
+  /**
+   * `true` when this call wrote artifacts; `false` when an existing
+   * `round-N-feedback.json` was detected and finalization was a no-op.
+   * The first writer wins; subsequent calls return the existing feedback
+   * without re-writing.
+   */
+  fresh: boolean;
+}
+
+/**
+ * Persist review-round artifacts: feedback file, reviewer session ID
+ * promotion, blocked-status update, and session.json commit. Mirrors
+ * `finalizeRevision` so review and revision rounds share idempotency
+ * semantics.
+ *
+ * Write ordering:
+ *   1. `round-N-feedback.json` — the reviewer payload
+ *   2. `session.reviewerSessionId` / `reviewerSessionInitialized` (if first round)
+ *   3. `session.status = "blocked"` (when verdict === "blocked")
+ *   4. `session.json` — single write covering 2+3 (commit point)
+ *
+ * Idempotency: if `round-N-feedback.json` already exists, returns the
+ * existing feedback with `fresh: false`. Tool-level checks in
+ * `planpong_get_feedback` are the primary replay path; this helper is the
+ * operation-level safety net.
+ *
+ * **Round advancement is NOT performed here.** `currentRound` is owned by
+ * the callers driving the loop (MCP get-feedback, CLI loop). Moving it
+ * here would double-advance in MCP mode.
+ */
+export function finalizeFeedback({
+  session,
+  cwd,
+  round,
+  feedback,
+  reviewerSessionInited,
+  capturedSessionId,
+}: FinalizeFeedbackInput): FinalizeFeedbackResult {
+  const existing = readRoundFeedback(cwd, session.id, round);
+  if (existing) {
+    return { feedback: existing, fresh: false };
+  }
+
+  writeRoundFeedback(cwd, session.id, round, feedback);
+
+  let sessionDirty = false;
   if (!reviewerSessionInited && capturedSessionId) {
     session.reviewerSessionId = capturedSessionId;
     session.reviewerSessionInitialized = true;
-    writeSessionState(cwd, session);
+    sessionDirty = true;
   }
-
-  // Extract phase-specific extras for status line
-  const phaseExtras: PhaseExtras = {};
   if (feedback.verdict === "blocked") {
-    phaseExtras.is_blocked = true;
     session.status = "blocked";
+    sessionDirty = true;
+  }
+  if (sessionDirty) {
     writeSessionState(cwd, session);
   }
-  if (phase === "direction" && "confidence" in feedback) {
-    phaseExtras.confidence = (feedback as DirectionFeedback).confidence;
-  }
-  if (phase === "risk") {
-    if ("risk_level" in feedback) {
-      const riskFb = feedback as RiskFeedback;
-      phaseExtras.risk_level = riskFb.risk_level;
-      phaseExtras.risk_count = riskFb.risks?.length ?? 0;
-      phaseExtras.risks_promoted = feedback.issues.length;
-    }
-  }
 
-  return { round, feedback, severity, converged, phaseExtras, timing };
+  return { feedback, fresh: true };
 }
 
 /**
@@ -905,6 +1005,18 @@ export async function runRevisionRound(
   const round = session.currentRound;
   const planPath = resolve(cwd, session.planPath);
   const planContent = readFileSync(planPath, "utf-8");
+  const existingResponse = readRoundResponse(cwd, session.id, round);
+  if (existingResponse) {
+    const tally = tallyResponses(existingResponse.responses);
+    return {
+      round,
+      revision: existingResponse,
+      accepted: tally.accepted,
+      rejected: tally.rejected,
+      deferred: tally.deferred,
+      planUpdated: false,
+    };
+  }
   const feedback = readRoundFeedback(cwd, session.id, round);
 
   if (!feedback) {

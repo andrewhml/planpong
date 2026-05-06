@@ -1,5 +1,14 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Session } from "../schemas/session.js";
 import type { ReviewFeedback, PhaseFeedback } from "../schemas/feedback.js";
@@ -11,9 +20,15 @@ import {
 } from "../schemas/metrics.js";
 
 const SESSIONS_DIR = ".planpong/sessions";
+const SESSION_LOCK_TIMEOUT_MS = 10 * 60 * 1000;
+const SESSION_LOCK_RETRY_MS = 25;
 
 function getSessionDir(repoRoot: string, sessionId: string): string {
   return join(repoRoot, SESSIONS_DIR, sessionId);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function createSession(
@@ -54,6 +69,67 @@ export function createSession(
 export function writeSessionState(repoRoot: string, session: Session): void {
   const dir = getSessionDir(repoRoot, session.id);
   writeFileSync(join(dir, "session.json"), JSON.stringify(session, null, 2));
+}
+
+export async function withSessionLock<T>(
+  repoRoot: string,
+  sessionId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const dir = getSessionDir(repoRoot, sessionId);
+  mkdirSync(dir, { recursive: true });
+  const lockPath = join(dir, "lock");
+  const started = Date.now();
+  let fd: number | null = null;
+
+  while (fd === null) {
+    try {
+      fd = openSync(lockPath, "wx");
+      writeFileSync(
+        fd,
+        JSON.stringify({
+          pid: process.pid,
+          acquired_at: new Date().toISOString(),
+        }),
+      );
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? (error as { code?: string }).code
+          : undefined;
+      if (code !== "EEXIST") throw error;
+
+      try {
+        const age = Date.now() - statSync(lockPath).mtimeMs;
+        if (age > SESSION_LOCK_TIMEOUT_MS) {
+          unlinkSync(lockPath);
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      if (Date.now() - started > SESSION_LOCK_TIMEOUT_MS) {
+        throw new Error(`Timed out waiting for session lock: ${sessionId}`);
+      }
+      await sleep(SESSION_LOCK_RETRY_MS);
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    try {
+      closeSync(fd);
+    } catch {
+      // ignore close failures; unlock still attempted below
+    }
+    try {
+      unlinkSync(lockPath);
+    } catch {
+      // stale/missing lock cleanup is best-effort
+    }
+  }
 }
 
 export function readSessionState(

@@ -64,12 +64,13 @@ export interface SessionStats {
 }
 export declare function computeSessionStats(cwd: string, sessionId: string, currentRound: number): SessionStats;
 export declare function formatPhaseExtras(phase: ReturnType<typeof getReviewPhase>, extras: PhaseExtras): string;
+export declare function phaseExtrasFromFeedback(phase: ReturnType<typeof getReviewPhase>, feedback: PhaseFeedback): PhaseExtras;
 export declare function buildStatusLine(session: Session, config: PlanpongConfig, issueTrajectory: RoundSeverity[], accepted: number, rejected: number, deferred: number, linesAdded: number, linesRemoved: number, elapsed: number, phaseExtras?: PhaseExtras): string;
 /**
  * Build and write the status line to the plan file.
  * Used by both CLI and MCP paths after each round.
  */
-export declare function writeStatusLineToPlan(session: Session, cwd: string, config: PlanpongConfig, suffix?: string): string;
+export declare function writeStatusLineToPlan(session: Session, cwd: string, config: PlanpongConfig, suffix?: string, phaseExtras?: PhaseExtras): string;
 export declare function updatePlanStatusLine(planContent: string, statusLine: string): string;
 /**
  * Initialize a review session for an existing plan file.
@@ -81,6 +82,48 @@ export declare function initReviewSession(planPath: string, cwd: string, config:
  * Run a single review round: send current plan to the reviewer for critique.
  */
 export declare function runReviewRound(session: Session, cwd: string, config: PlanpongConfig, reviewerProvider: Provider): Promise<ReviewRoundResult>;
+export interface FinalizeFeedbackInput {
+    session: Session;
+    cwd: string;
+    round: number;
+    feedback: PhaseFeedback;
+    /** True when the reviewer session was already established before this round. */
+    reviewerSessionInited: boolean;
+    /** Captured reviewer session/thread ID from this round's invocation. */
+    capturedSessionId?: string;
+}
+export interface FinalizeFeedbackResult {
+    feedback: PhaseFeedback;
+    /**
+     * `true` when this call wrote artifacts; `false` when an existing
+     * `round-N-feedback.json` was detected and finalization was a no-op.
+     * The first writer wins; subsequent calls return the existing feedback
+     * without re-writing.
+     */
+    fresh: boolean;
+}
+/**
+ * Persist review-round artifacts: feedback file, reviewer session ID
+ * promotion, blocked-status update, and session.json commit. Mirrors
+ * `finalizeRevision` so review and revision rounds share idempotency
+ * semantics.
+ *
+ * Write ordering:
+ *   1. `round-N-feedback.json` — the reviewer payload
+ *   2. `session.reviewerSessionId` / `reviewerSessionInitialized` (if first round)
+ *   3. `session.status = "blocked"` (when verdict === "blocked")
+ *   4. `session.json` — single write covering 2+3 (commit point)
+ *
+ * Idempotency: if `round-N-feedback.json` already exists, returns the
+ * existing feedback with `fresh: false`. Tool-level checks in
+ * `planpong_get_feedback` are the primary replay path; this helper is the
+ * operation-level safety net.
+ *
+ * **Round advancement is NOT performed here.** `currentRound` is owned by
+ * the callers driving the loop (MCP get-feedback, CLI loop). Moving it
+ * here would double-advance in MCP mode.
+ */
+export declare function finalizeFeedback({ session, cwd, round, feedback, reviewerSessionInited, capturedSessionId, }: FinalizeFeedbackInput): FinalizeFeedbackResult;
 /**
  * Run a single revision round: send plan + feedback to the planner for revision.
  */

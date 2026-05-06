@@ -126,6 +126,16 @@ describe("recordRevisionHandler", () => {
     expect(payload.deferred).toBe(1);
     expect(payload.rejected).toBe(0);
     expect(payload.planner_mode).toBe("inline");
+    expect(payload.decision_rows).toHaveLength(2);
+    expect(payload.decision_rows[0]).toMatchObject({
+      issue_id: "F1",
+      severity: "P2",
+      title: "fix this",
+      decision: "accepted",
+      rationale: "valid concern",
+    });
+    expect(payload.display_markdown).toContain("Round 1 - Planner decisions");
+    expect(payload.display_markdown).toContain("| F1 | P2 | fix this | Accepted | valid concern |");
 
     // Response file written.
     const responseFile = join(
@@ -154,7 +164,7 @@ describe("recordRevisionHandler", () => {
     expect(parseResponseJson(result).error).toMatch(/external planner mode/);
   });
 
-  it("rejects when expected_round mismatches session.currentRound", async () => {
+  it("rejects stale expected_round values", async () => {
     const sessionId = seedSession({ currentRound: 2 });
     const result = await recordRevisionHandler({
       session_id: sessionId,
@@ -167,9 +177,27 @@ describe("recordRevisionHandler", () => {
     });
     expect(result.isError).toBe(true);
     const err = parseResponseJson(result);
-    expect(err.error).toMatch(/already finalized/);
+    expect(err.error).toMatch(/stale/);
     expect(err.expected_round).toBe(1);
     expect(err.current_round).toBe(2);
+  });
+
+  it("rejects out-of-order expected_round values", async () => {
+    const sessionId = seedSession({ currentRound: 1 });
+    const result = await recordRevisionHandler({
+      session_id: sessionId,
+      expected_round: 2,
+      responses: [
+        { issue_id: "F1", action: "accepted", rationale: "x" },
+        { issue_id: "F2", action: "accepted", rationale: "x" },
+      ],
+      cwd: tmpDir,
+    });
+    expect(result.isError).toBe(true);
+    const err = parseResponseJson(result);
+    expect(err.error).toMatch(/out-of-order/);
+    expect(err.expected_round).toBe(2);
+    expect(err.current_round).toBe(1);
   });
 
   it("rejects when a feedback issue has no matching response", async () => {
@@ -262,6 +290,26 @@ describe("recordRevisionHandler", () => {
     );
   });
 
+  it("surfaces no-plan-update warning in display_markdown", async () => {
+    const sessionId = seedSession();
+    const result = await recordRevisionHandler({
+      session_id: sessionId,
+      expected_round: 1,
+      responses: [
+        { issue_id: "F1", action: "accepted", rationale: "x" },
+        { issue_id: "F2", action: "rejected", rationale: "x" },
+      ],
+      cwd: tmpDir,
+    });
+
+    const payload = parseResponseJson(result);
+    expect(payload.display_markdown).toContain("Warning:");
+    expect(payload.display_markdown).toContain("plan hash is unchanged");
+    expect(payload.display_warnings).toEqual([
+      expect.stringContaining("plan hash is unchanged"),
+    ]);
+  });
+
   it("is idempotent on duplicate calls with identical responses", async () => {
     const sessionId = seedSession();
     const responses = [
@@ -286,5 +334,33 @@ describe("recordRevisionHandler", () => {
     const secondPayload = parseResponseJson(second);
     expect(secondPayload.idempotent_replay).toBe(true);
     expect(secondPayload.accepted).toBe(2);
+  });
+
+  it("rejects duplicate calls with different responses", async () => {
+    const sessionId = seedSession();
+    await recordRevisionHandler({
+      session_id: sessionId,
+      expected_round: 1,
+      responses: [
+        { issue_id: "F1", action: "accepted", rationale: "x" },
+        { issue_id: "F2", action: "accepted", rationale: "x" },
+      ],
+      cwd: tmpDir,
+    });
+
+    const second = await recordRevisionHandler({
+      session_id: sessionId,
+      expected_round: 1,
+      responses: [
+        { issue_id: "F1", action: "rejected", rationale: "changed" },
+        { issue_id: "F2", action: "accepted", rationale: "x" },
+      ],
+      cwd: tmpDir,
+    });
+
+    expect(second.isError).toBe(true);
+    const err = parseResponseJson(second);
+    expect(err.error).toMatch(/already finalized with different responses/);
+    expect(err.idempotent_replay).toBe(false);
   });
 });

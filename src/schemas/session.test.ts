@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionSchema } from "./session.js";
-import { readSessionState } from "../core/session.js";
+import { readSessionState, withSessionLock } from "../core/session.js";
 
 describe("SessionSchema backward compatibility for plannerMode", () => {
   it("defaults plannerMode to 'external' when absent (Zod schema test)", () => {
@@ -118,5 +118,28 @@ describe("readSessionState backward compatibility for plannerMode", () => {
 
     const session = readSessionState(tmpDir, sessionId);
     expect(session?.plannerMode).toBe("inline");
+  });
+
+  it("serializes work with a per-session lock", async () => {
+    const sessionId = "locked789";
+    const order: string[] = [];
+
+    const first = withSessionLock(tmpDir, sessionId, async () => {
+      order.push("first:start");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      order.push("first:end");
+    });
+    const second = withSessionLock(tmpDir, sessionId, async () => {
+      order.push("second:start");
+      order.push("second:end");
+    });
+
+    await Promise.all([first, second]);
+    expect(order).toEqual([
+      "first:start",
+      "first:end",
+      "second:start",
+      "second:end",
+    ]);
   });
 });

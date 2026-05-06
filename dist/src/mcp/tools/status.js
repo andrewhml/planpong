@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { readSessionState, readRoundFeedback, readRoundResponse, readRoundMetrics, } from "../../core/session.js";
 import { formatTrajectory, severityFromFeedback, } from "../../core/operations.js";
+import { getRoundState } from "../../core/round-state.js";
 const inputSchema = {
     session_id: z.string().describe("Session ID to check"),
     cwd: z
@@ -30,7 +31,11 @@ export function registerStatus(server) {
         for (let r = 1; r <= session.currentRound; r++) {
             const fb = readRoundFeedback(cwd, session.id, r);
             const resp = readRoundResponse(cwd, session.id, r);
-            const roundInfo = { round: r };
+            const roundInfo = {
+                round: r,
+                feedback_written: fb !== null,
+                response_written: resp !== null,
+            };
             if (fb) {
                 roundInfo.feedback_summary = fb.summary;
                 roundInfo.verdict = fb.verdict;
@@ -69,6 +74,15 @@ export function registerStatus(server) {
             }
             rounds.push(roundInfo);
         }
+        const roundState = getRoundState(cwd, session);
+        if (session.currentRound > 0 && rounds.length > 0) {
+            const current = rounds.find((r) => r.round === session.currentRound);
+            if (current) {
+                current.next_action = roundState.nextAction;
+                current.incomplete_transition = roundState.incompleteTransition;
+                current.inconsistent_artifacts = roundState.inconsistentArtifacts;
+            }
+        }
         const trajectory = severities.length > 0
             ? formatTrajectory(severities)
             : "No rounds completed";
@@ -85,6 +99,9 @@ export function registerStatus(server) {
                             started_at: session.startedAt,
                             planner: session.planner,
                             reviewer: session.reviewer,
+                            next_action: roundState.nextAction,
+                            incomplete_transition: roundState.incompleteTransition,
+                            inconsistent_artifacts: roundState.inconsistentArtifacts,
                         },
                         rounds,
                         trajectory,
