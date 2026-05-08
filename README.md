@@ -116,6 +116,15 @@ planner_mode: inline # inline or external (see below)
 
 All fields are optional. Defaults: claude (planner) + codex (reviewer), 10 rounds, `docs/plans/` directory, `planner_mode: inline`, `revision_mode: full`, `human_in_loop: true`.
 
+### Revision mode: full vs edits
+
+`revision_mode` controls how the planner emits a revised plan after each round of feedback:
+
+- **`full` (default)** — the planner re-emits the entire plan markdown each round. Simple and robust; works for any plan size and any kind of change.
+- **`edits`** — the planner emits a list of targeted text replacements (`{ section, before, after }`) which planpong applies server-side. ~10× less output token volume on detail rounds that touch only a section or two, so revisions are noticeably faster on mature plans. Direction (round 1) still uses full rewrites since that's the round where sweeping changes are expected.
+
+Use `full` for new plans where most rounds will rewrite large sections. Switch to `edits` once a plan has converged enough that rounds are touching one or two paragraphs at a time.
+
 ### Planner mode: inline vs external
 
 `planner_mode` is the most consequential operational choice. It decides who actually rewrites the plan after each round of feedback:
@@ -161,6 +170,7 @@ Planpong's MCP tools are designed to be safe under retries, duplicated calls, an
 - **`planpong_revise` and `planpong_record_revision` require `expected_round`.** Pass the round number returned by the most recent `planpong_get_feedback`. Stale calls (round mismatched lower) and out-of-order calls (mismatched higher) return precise errors instead of double-charging the planner.
 - **Tool calls are replay-safe.** Calling `planpong_get_feedback` twice before the round's revision returns the existing feedback with `idempotent_replay: true` instead of re-invoking the reviewer. The same applies to `planpong_revise` and `planpong_record_revision` when the round's response artifact already exists.
 - **Per-session lock.** Mutating MCP tools acquire an exclusive lock at `.planpong/sessions/<id>/lock` so two overlapping clients cannot both advance the same session.
+- **Reviewer findings carry an evidence flag.** Each issue in `planpong_get_feedback` may include a `quoted_text` field (a short verbatim quote from the plan) and a `verified: true | false` flag set by planpong post-parse. `verified: false` means the quote could not be located in the plan — usually a hallucinated or paraphrased finding. Planners should deprioritize unverified issues. The response also includes `unverified_count` for quick triage.
 
 Most users driving planpong through Claude Code never see these primitives — the slash commands and the orchestrator's instructions handle them. They matter if you're building an external MCP client.
 

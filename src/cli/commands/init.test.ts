@@ -7,6 +7,7 @@ import {
   readDiskSnapshot,
   formatPostWriteSummary,
   isInteractiveTty,
+  effortLabel,
   type WizardAnswers,
   type DiskSnapshot,
 } from "./init.js";
@@ -19,6 +20,8 @@ const baseAnswers: WizardAnswers = {
   maxRounds: 10,
   plansDir: "docs/plans",
   plannerMode: "inline",
+  revisionMode: "full",
+  humanInLoop: true,
 };
 
 describe("answersToPicks", () => {
@@ -33,6 +36,8 @@ describe("answersToPicks", () => {
       "max_rounds",
       "plans_dir",
       "planner_mode",
+      "revision_mode",
+      "human_in_loop",
     ]);
   });
 
@@ -43,6 +48,8 @@ describe("answersToPicks", () => {
       max_rounds: 10,
       plans_dir: "docs/plans",
       planner_mode: "inline",
+      revision_mode: "full",
+      human_in_loop: true,
     };
     expect(answersToPicks(baseAnswers, disk)).toEqual([]);
   });
@@ -54,10 +61,53 @@ describe("answersToPicks", () => {
       max_rounds: 10,
       plans_dir: "docs/plans",
       planner_mode: "inline",
+      revision_mode: "full",
+      human_in_loop: true,
     };
     const changed: WizardAnswers = { ...baseAnswers, maxRounds: 15 };
     const picks = answersToPicks(changed, disk);
     expect(picks).toEqual([{ key: "max_rounds", rawValue: "15" }]);
+  });
+
+  it("includes effort picks only when answers provide them (effort prompt fired)", () => {
+    const withEffort: WizardAnswers = {
+      ...baseAnswers,
+      plannerEffort: "high",
+      reviewerEffort: "xhigh",
+    };
+    const picks = answersToPicks(withEffort, {});
+    const keys = picks.map((p) => p.key);
+    expect(keys).toContain("planner.effort");
+    expect(keys).toContain("reviewer.effort");
+  });
+
+  it("omits effort picks when answers leave them undefined (single-level provider)", () => {
+    const picks = answersToPicks(baseAnswers, {});
+    const keys = picks.map((p) => p.key);
+    expect(keys).not.toContain("planner.effort");
+    expect(keys).not.toContain("reviewer.effort");
+  });
+
+  it("emits revision_mode and human_in_loop changes", () => {
+    const disk: DiskSnapshot = {
+      planner: { provider: "claude", model: "opus" },
+      reviewer: { provider: "codex", model: "gpt-5.3-codex" },
+      max_rounds: 10,
+      plans_dir: "docs/plans",
+      planner_mode: "inline",
+      revision_mode: "full",
+      human_in_loop: true,
+    };
+    const changed: WizardAnswers = {
+      ...baseAnswers,
+      revisionMode: "edits",
+      humanInLoop: false,
+    };
+    const picks = answersToPicks(changed, disk);
+    expect(picks).toEqual([
+      { key: "revision_mode", rawValue: "edits" },
+      { key: "human_in_loop", rawValue: "false" },
+    ]);
   });
 
   it("includes new keys absent from the on-disk file", () => {
@@ -134,6 +184,8 @@ describe("formatPostWriteSummary", () => {
     maxRounds: 10,
     plansDir: "docs/plans",
     plannerMode: "inline",
+    revisionMode: "full",
+    humanInLoop: true,
   };
 
   it("includes the gemini auth reminder when gemini is picked as planner", () => {
@@ -174,5 +226,18 @@ describe("isInteractiveTty", () => {
 
   it("returns false when isTTY === false", () => {
     expect(isInteractiveTty({ isTTY: false })).toBe(false);
+  });
+});
+
+describe("effortLabel", () => {
+  it("returns descriptive labels for codex effort levels", () => {
+    expect(effortLabel("low")).toMatch(/fastest|cheap/);
+    expect(effortLabel("high")).toMatch(/recommended/);
+    expect(effortLabel("xhigh")).toMatch(/slowest|thorough/);
+  });
+
+  it("returns the raw level for unknown values", () => {
+    expect(effortLabel("medium")).toBe("medium");
+    expect(effortLabel("unknown-future-tier")).toBe("unknown-future-tier");
   });
 });

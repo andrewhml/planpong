@@ -5,6 +5,25 @@ import { select, input, confirm } from "@inquirer/prompts";
 import chalk from "chalk";
 import { setConfigValuesBatch, } from "../../config/mutate.js";
 import { getAllProviders, getInstallHint, } from "../../providers/registry.js";
+/**
+ * Map a codex effort level to a human-readable label for the wizard.
+ * Falls through to the raw value for unknown levels (future-proofing
+ * against new effort tiers).
+ */
+export function effortLabel(level) {
+    switch (level) {
+        case "low":
+            return "low — fastest, cheapest";
+        case "medium":
+            return "medium";
+        case "high":
+            return "high — recommended";
+        case "xhigh":
+            return "xhigh — slowest, most thorough";
+        default:
+            return level;
+    }
+}
 const CONFIG_FILENAMES = [
     "planpong.yaml",
     "planpong.yml",
@@ -60,11 +79,19 @@ export function answersToPicks(answers, disk) {
     };
     add("planner.provider", answers.plannerProvider, disk.planner?.provider);
     add("planner.model", answers.plannerModel, disk.planner?.model);
+    if (answers.plannerEffort !== undefined) {
+        add("planner.effort", answers.plannerEffort, disk.planner?.effort);
+    }
     add("reviewer.provider", answers.reviewerProvider, disk.reviewer?.provider);
     add("reviewer.model", answers.reviewerModel, disk.reviewer?.model);
+    if (answers.reviewerEffort !== undefined) {
+        add("reviewer.effort", answers.reviewerEffort, disk.reviewer?.effort);
+    }
     add("max_rounds", answers.maxRounds, disk.max_rounds);
     add("plans_dir", answers.plansDir, disk.plans_dir);
     add("planner_mode", answers.plannerMode, disk.planner_mode);
+    add("revision_mode", answers.revisionMode, disk.revision_mode);
+    add("human_in_loop", answers.humanInLoop, disk.human_in_loop);
     return picks;
 }
 async function probeProviders() {
@@ -122,12 +149,23 @@ async function runWizard(cwd) {
         choices: installedChoices,
         default: disk.planner?.provider ?? installedChoices[0].value,
     });
-    const plannerModelChoices = (statuses.find((s) => s.provider.name === plannerProvider)?.provider.getModels() ?? []).map((m) => ({ name: m, value: m }));
+    const plannerProviderObj = statuses.find((s) => s.provider.name === plannerProvider)?.provider;
+    const plannerModelChoices = (plannerProviderObj?.getModels() ?? []).map((m) => ({ name: m, value: m }));
     const plannerModel = await select({
         message: "Planner model:",
         choices: plannerModelChoices,
         default: disk.planner?.model ?? plannerModelChoices[0]?.value,
     });
+    const plannerEffortLevels = plannerProviderObj?.getEffortLevels() ?? [];
+    let plannerEffort;
+    if (plannerEffortLevels.length > 1) {
+        plannerEffort = await select({
+            message: "Planner effort level:",
+            choices: plannerEffortLevels.map((l) => ({ name: effortLabel(l), value: l })),
+            default: disk.planner?.effort ??
+                plannerEffortLevels[Math.floor(plannerEffortLevels.length / 2)],
+        });
+    }
     const reviewerProvider = await select({
         message: "Reviewer provider:",
         choices: installedChoices,
@@ -136,12 +174,23 @@ async function runWizard(cwd) {
     if (reviewerProvider === plannerProvider) {
         console.log(chalk.yellow("  note: planner and reviewer use the same provider. Adversarial signal is reduced when both roles share a model lineage."));
     }
-    const reviewerModelChoices = (statuses.find((s) => s.provider.name === reviewerProvider)?.provider.getModels() ?? []).map((m) => ({ name: m, value: m }));
+    const reviewerProviderObj = statuses.find((s) => s.provider.name === reviewerProvider)?.provider;
+    const reviewerModelChoices = (reviewerProviderObj?.getModels() ?? []).map((m) => ({ name: m, value: m }));
     const reviewerModel = await select({
         message: "Reviewer model:",
         choices: reviewerModelChoices,
         default: disk.reviewer?.model ?? reviewerModelChoices[0]?.value,
     });
+    const reviewerEffortLevels = reviewerProviderObj?.getEffortLevels() ?? [];
+    let reviewerEffort;
+    if (reviewerEffortLevels.length > 1) {
+        reviewerEffort = await select({
+            message: "Reviewer effort level:",
+            choices: reviewerEffortLevels.map((l) => ({ name: effortLabel(l), value: l })),
+            default: disk.reviewer?.effort ??
+                reviewerEffortLevels[Math.floor(reviewerEffortLevels.length / 2)],
+        });
+    }
     const maxRoundsRaw = await input({
         message: "Maximum review rounds:",
         default: String(disk.max_rounds ?? 10),
@@ -164,17 +213,37 @@ async function runWizard(cwd) {
         ],
         default: disk.planner_mode ?? "inline",
     }));
+    const revisionMode = (await select({
+        message: "Revision mode:",
+        choices: [
+            { name: "full (planner re-emits the entire plan each round — simple, slower)", value: "full" },
+            { name: "edits (planner emits targeted text replacements — faster on mature plans)", value: "edits" },
+        ],
+        default: disk.revision_mode ?? "full",
+    }));
+    const humanInLoop = (await select({
+        message: "Pause between rounds for review?",
+        choices: [
+            { name: "yes (recommended — confirm or redirect after each round)", value: true },
+            { name: "no (run autonomously to convergence or round limit)", value: false },
+        ],
+        default: disk.human_in_loop ?? true,
+    }));
     if (reviewerProvider === "gemini") {
         console.log("\n" + chalk.yellow(GEMINI_REVIEWER_INLINE_WARNING) + "\n");
     }
     const answers = {
         plannerProvider,
         plannerModel,
+        plannerEffort,
         reviewerProvider,
         reviewerModel,
+        reviewerEffort,
         maxRounds: Number(maxRoundsRaw),
         plansDir,
         plannerMode,
+        revisionMode,
+        humanInLoop,
     };
     const picks = answersToPicks(answers, disk);
     if (picks.length === 0) {
