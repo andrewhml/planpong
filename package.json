@@ -1,6 +1,6 @@
 {
   "name": "planpong",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Multi-model adversarial plan review — orchestrates AI agents to critique and refine implementation plans",
   "type": "module",
   "bin": {
