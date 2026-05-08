@@ -1,7 +1,6 @@
 # Reviewer Evidence Verification
 
-**Status:** Draft
-**planpong:** R5/10 | claude(claude-opus-4-6/high) → codex(gpt-5.3-codex/xhigh) | detail | 2P1 7P2 2P3 → 2P2 1P3 → 1P1 1P2 → 1P2 1P3 | Accepted: 10 | Rejected: 5 | Deferred: 1 | +28/-0 lines | 28m 57s | Reviewed — 2 issues
+**Status:** Shipped (PR [#31](https://github.com/andrewhml/planpong/pull/31), commit `f9e714d`, v0.5.3) — planpong review reached R5/10 before implementation.
 
 ## Context
 

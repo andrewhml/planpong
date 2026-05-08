@@ -1,7 +1,6 @@
 # Diff-Only Revisions for Risk + Detail Phases
 
-**Status:** Draft
-**planpong:** R3/10 | claude(claude-opus-4-6/high) → codex(gpt-5.3-codex/xhigh) | detail | 3P2 1P3 → 6P2 → 2P2 | Accepted: 9 | Rejected: 1 | +37/-0 lines | 13m 52s | Reviewed — 2 issues
+**Status:** Shipped (PR [#29](https://github.com/andrewhml/planpong/pull/29), commit `4cf34a6`, v0.5.0) — planpong review reached R3/10 before implementation. Edits mode is opt-in via `revision_mode: edits`; default remains `full`.
 
 ## Context
 

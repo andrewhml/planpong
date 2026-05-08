@@ -1,7 +1,6 @@
 # Config visibility and mutation via CLI + MCP
 
-**Status:** Approved
-**planpong:** R4/10 | claude(claude-opus-4-6/high) → codex(gpt-5.3-codex/xhigh) | detail | 2P2 2P3 → 1P1 3P2 → 1P1 → 0 | Accepted: 8 | Rejected: 1 | +10/-0 lines | 8m 16s | Approved after 4 rounds
+**Status:** Shipped (PR [#33](https://github.com/andrewhml/planpong/pull/33), commit `80bd170`, v0.5.5) — planpong-approved after 4 rounds.
 
 ## Context
 

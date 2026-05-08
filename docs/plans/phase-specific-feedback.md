@@ -1,7 +1,6 @@
 # Phase-Specific Feedback Schemas + Report Tool
 
-**Status:** Approved
-**planpong:** R4/10 | claude(claude-opus-4-6/high) → codex(gpt-5.3-codex/xhigh) | 1P1 2P2 → 1P1 3P2 1P3 → 1P2 1P3 → 1P3 | Accepted: 8 | Rejected: 2 | +70/-0 lines | 14m 18s | Approved after 4 rounds
+**Status:** Shipped (PR [#16](https://github.com/andrewhml/planpong/pull/16), commit `16228ff`, v0.2.0) — planpong-approved after 4 rounds.
 
 ## Problem
 

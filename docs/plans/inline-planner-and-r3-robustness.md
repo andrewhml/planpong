@@ -1,7 +1,6 @@
 # Inline Planner Mode + R3 Robustness Bundle
 
-**Status:** Approved
-**planpong:** R5/10 | claude(claude-opus-4-6/high) → codex(gpt-5.3-codex/xhigh) | detail | 3P2 1P3 → 1P1 3P2 → 3P1 → 1P1 → 0 | Accepted: 11 | Deferred: 1 | +107/-0 lines | 1054m 55s | Approved after 5 rounds
+**Status:** Shipped (PR [#32](https://github.com/andrewhml/planpong/pull/32), commit `fbcaed6`, v0.5.4) — planpong-approved after 5 rounds.
 
 ## Context
 
