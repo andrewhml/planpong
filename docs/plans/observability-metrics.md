@@ -1,7 +1,6 @@
 # Per-Invocation Observability & Metrics
 
-**Status:** Approved
-**planpong:** R4/10 | claude(claude-opus-4-6/high) → codex(gpt-5.3-codex/xhigh) | detail | 3P2 1P3 → 6P2 → 1P2 1P3 → 0 | Accepted: 7 | Rejected: 5 | +63/-0 lines | 28m 59s | Approved after 4 rounds
+**Status:** Shipped (PR [#29](https://github.com/andrewhml/planpong/pull/29), commit `4cf34a6`, v0.5.0) — planpong-approved after 4 rounds.
 
 ## Context
 

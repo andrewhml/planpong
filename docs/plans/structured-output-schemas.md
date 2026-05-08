@@ -1,7 +1,6 @@
 # Structured Output Schemas for Feedback & Revision Parsing
 
-**Status:** Approved
-**planpong:** R5/10 | claude(claude-opus-4-6/high) → codex(gpt-5.3-codex/xhigh) | detail | 3P2 1P3 → 6P2 → 1P2 1P3 → 1P2 → 1P3 | Accepted: 11 | Rejected: 1 | Deferred: 1 | +121/-0 lines | 19m 34s | Approved after 5 rounds
+**Status:** Shipped (PR [#23](https://github.com/andrewhml/planpong/pull/23), commit `517b6d0`, v0.4.0) — planpong-approved after 5 rounds.
 
 ## Context
 
