@@ -3,25 +3,39 @@ import { type BatchPick } from "../../config/mutate.js";
 export interface WizardAnswers {
     plannerProvider: string;
     plannerModel: string;
+    plannerEffort?: string;
     reviewerProvider: string;
     reviewerModel: string;
+    reviewerEffort?: string;
     maxRounds: number;
     plansDir: string;
     plannerMode: "inline" | "external";
+    revisionMode: "full" | "edits";
+    humanInLoop: boolean;
 }
 export interface DiskSnapshot {
     planner?: {
         provider?: string;
         model?: string;
+        effort?: string;
     };
     reviewer?: {
         provider?: string;
         model?: string;
+        effort?: string;
     };
     max_rounds?: number;
     plans_dir?: string;
     planner_mode?: "inline" | "external";
+    revision_mode?: "full" | "edits";
+    human_in_loop?: boolean;
 }
+/**
+ * Map a codex effort level to a human-readable label for the wizard.
+ * Falls through to the raw value for unknown levels (future-proofing
+ * against new effort tiers).
+ */
+export declare function effortLabel(level: string): string;
 /**
  * Read planpong.yaml directly into a partial snapshot. Unlike loadConfig(),
  * this does NOT merge defaults — fields the user never wrote remain

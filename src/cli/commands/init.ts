@@ -17,19 +17,45 @@ import type { Provider } from "../../providers/types.js";
 export interface WizardAnswers {
   plannerProvider: string;
   plannerModel: string;
+  plannerEffort?: string;
   reviewerProvider: string;
   reviewerModel: string;
+  reviewerEffort?: string;
   maxRounds: number;
   plansDir: string;
   plannerMode: "inline" | "external";
+  revisionMode: "full" | "edits";
+  humanInLoop: boolean;
 }
 
 export interface DiskSnapshot {
-  planner?: { provider?: string; model?: string };
-  reviewer?: { provider?: string; model?: string };
+  planner?: { provider?: string; model?: string; effort?: string };
+  reviewer?: { provider?: string; model?: string; effort?: string };
   max_rounds?: number;
   plans_dir?: string;
   planner_mode?: "inline" | "external";
+  revision_mode?: "full" | "edits";
+  human_in_loop?: boolean;
+}
+
+/**
+ * Map a codex effort level to a human-readable label for the wizard.
+ * Falls through to the raw value for unknown levels (future-proofing
+ * against new effort tiers).
+ */
+export function effortLabel(level: string): string {
+  switch (level) {
+    case "low":
+      return "low — fastest, cheapest";
+    case "medium":
+      return "medium";
+    case "high":
+      return "high — recommended";
+    case "xhigh":
+      return "xhigh — slowest, most thorough";
+    default:
+      return level;
+  }
 }
 
 const CONFIG_FILENAMES = [
@@ -103,11 +129,19 @@ export function answersToPicks(
 
   add("planner.provider", answers.plannerProvider, disk.planner?.provider);
   add("planner.model", answers.plannerModel, disk.planner?.model);
+  if (answers.plannerEffort !== undefined) {
+    add("planner.effort", answers.plannerEffort, disk.planner?.effort);
+  }
   add("reviewer.provider", answers.reviewerProvider, disk.reviewer?.provider);
   add("reviewer.model", answers.reviewerModel, disk.reviewer?.model);
+  if (answers.reviewerEffort !== undefined) {
+    add("reviewer.effort", answers.reviewerEffort, disk.reviewer?.effort);
+  }
   add("max_rounds", answers.maxRounds, disk.max_rounds);
   add("plans_dir", answers.plansDir, disk.plans_dir);
   add("planner_mode", answers.plannerMode, disk.planner_mode);
+  add("revision_mode", answers.revisionMode, disk.revision_mode);
+  add("human_in_loop", answers.humanInLoop, disk.human_in_loop);
 
   return picks;
 }
@@ -187,14 +221,28 @@ async function runWizard(cwd: string): Promise<void> {
     choices: installedChoices,
     default: disk.planner?.provider ?? installedChoices[0].value,
   });
-  const plannerModelChoices = (
-    statuses.find((s) => s.provider.name === plannerProvider)?.provider.getModels() ?? []
-  ).map((m) => ({ name: m, value: m }));
+  const plannerProviderObj = statuses.find(
+    (s) => s.provider.name === plannerProvider,
+  )?.provider;
+  const plannerModelChoices = (plannerProviderObj?.getModels() ?? []).map(
+    (m) => ({ name: m, value: m }),
+  );
   const plannerModel = await select({
     message: "Planner model:",
     choices: plannerModelChoices,
     default: disk.planner?.model ?? plannerModelChoices[0]?.value,
   });
+  const plannerEffortLevels = plannerProviderObj?.getEffortLevels() ?? [];
+  let plannerEffort: string | undefined;
+  if (plannerEffortLevels.length > 1) {
+    plannerEffort = await select({
+      message: "Planner effort level:",
+      choices: plannerEffortLevels.map((l) => ({ name: effortLabel(l), value: l })),
+      default:
+        disk.planner?.effort ??
+        plannerEffortLevels[Math.floor(plannerEffortLevels.length / 2)],
+    });
+  }
 
   const reviewerProvider = await select({
     message: "Reviewer provider:",
@@ -208,14 +256,28 @@ async function runWizard(cwd: string): Promise<void> {
       ),
     );
   }
-  const reviewerModelChoices = (
-    statuses.find((s) => s.provider.name === reviewerProvider)?.provider.getModels() ?? []
-  ).map((m) => ({ name: m, value: m }));
+  const reviewerProviderObj = statuses.find(
+    (s) => s.provider.name === reviewerProvider,
+  )?.provider;
+  const reviewerModelChoices = (reviewerProviderObj?.getModels() ?? []).map(
+    (m) => ({ name: m, value: m }),
+  );
   const reviewerModel = await select({
     message: "Reviewer model:",
     choices: reviewerModelChoices,
     default: disk.reviewer?.model ?? reviewerModelChoices[0]?.value,
   });
+  const reviewerEffortLevels = reviewerProviderObj?.getEffortLevels() ?? [];
+  let reviewerEffort: string | undefined;
+  if (reviewerEffortLevels.length > 1) {
+    reviewerEffort = await select({
+      message: "Reviewer effort level:",
+      choices: reviewerEffortLevels.map((l) => ({ name: effortLabel(l), value: l })),
+      default:
+        disk.reviewer?.effort ??
+        reviewerEffortLevels[Math.floor(reviewerEffortLevels.length / 2)],
+    });
+  }
 
   const maxRoundsRaw = await input({
     message: "Maximum review rounds:",
@@ -239,6 +301,22 @@ async function runWizard(cwd: string): Promise<void> {
     ],
     default: disk.planner_mode ?? "inline",
   })) as "inline" | "external";
+  const revisionMode = (await select({
+    message: "Revision mode:",
+    choices: [
+      { name: "full (planner re-emits the entire plan each round — simple, slower)", value: "full" },
+      { name: "edits (planner emits targeted text replacements — faster on mature plans)", value: "edits" },
+    ],
+    default: disk.revision_mode ?? "full",
+  })) as "full" | "edits";
+  const humanInLoop = (await select({
+    message: "Pause between rounds for review?",
+    choices: [
+      { name: "yes (recommended — confirm or redirect after each round)", value: true },
+      { name: "no (run autonomously to convergence or round limit)", value: false },
+    ],
+    default: disk.human_in_loop ?? true,
+  })) as boolean;
 
   if (reviewerProvider === "gemini") {
     console.log("\n" + chalk.yellow(GEMINI_REVIEWER_INLINE_WARNING) + "\n");
@@ -247,11 +325,15 @@ async function runWizard(cwd: string): Promise<void> {
   const answers: WizardAnswers = {
     plannerProvider,
     plannerModel,
+    plannerEffort,
     reviewerProvider,
     reviewerModel,
+    reviewerEffort,
     maxRounds: Number(maxRoundsRaw),
     plansDir,
     plannerMode,
+    revisionMode,
+    humanInLoop,
   };
 
   const picks = answersToPicks(answers, disk);
