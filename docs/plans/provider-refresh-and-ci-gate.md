@@ -1,6 +1,6 @@
 # Provider Refresh and CI Test Gate
 
-**Status:** In progress (PR 2: provider refresh)
+**Status:** Shipped (PR [#55](https://github.com/andrewhml/planpong/pull/55), PR [#56](https://github.com/andrewhml/planpong/pull/56), released in v0.7.0)
 **planpong:** R5/10 | claude(claude-opus-4-6/high) → codex(gpt-6-astra/xhigh) | detail | 0 → 2P2 2P3 → 1P1 3P2 1P3 → 2P2 → 0 | Accepted: 11 | +24/-0 lines | 22m 40s | Approved after 5 rounds
 
 ## Context
@@ -128,7 +128,7 @@ Two PRs. The CI gate lands first so the provider changes merge behind it.
 ### Release
 
 - [x] Docs gate (per project convention, docs are release-blocking): README provider section (claude effort now honored; gemini: state that some accounts are now rejected by the gemini CLI and planpong surfaces the provider's reason, without asserting which tiers work; `config providers` shows live codex models), `planpong config --help` / `config providers` help text, and the MCP server instructions if they mention models.
-- [ ] `npm version minor` → 0.7.0, push with tags.
+- [x] `npm version minor` → 0.7.0, push with tags.
 
 ## Risks and mitigations
 
