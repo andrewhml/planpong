@@ -3,9 +3,70 @@ import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions, logClassificationFailure, summarizeStderr, } from "./shared.js";
-const MODELS = ["gpt-5.3-codex", "o3-pro", "o3", "o4-mini"];
-const EFFORT_LEVELS = ["low", "medium", "high", "xhigh"];
+import { z } from "zod";
+import { assertMutuallyExclusiveSessions, buildCatalog, logClassificationFailure, summarizeStderr, } from "./shared.js";
+// Built-in fallback, snapshot of `codex debug models` (list-visible only)
+// taken 2026-09-25 with codex-cli 0.157.0. Used when live discovery fails.
+const STATIC_MODELS = [
+    { id: "gpt-6-astra", efforts: ["low", "medium", "high", "xhigh", "max", "ultra"], defaultEffort: "medium" },
+    { id: "gpt-6-sol", efforts: ["low", "medium", "high", "xhigh", "max", "ultra"], defaultEffort: "medium" },
+    { id: "gpt-6-luna", efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "medium" },
+    { id: "gpt-5.6-sol", efforts: ["low", "medium", "high", "xhigh", "max", "ultra"], defaultEffort: "low" },
+    { id: "gpt-5.6-terra", efforts: ["low", "medium", "high", "xhigh", "max", "ultra"], defaultEffort: "medium" },
+    { id: "gpt-5.6-luna", efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: "medium" },
+    { id: "gpt-5.5", efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" },
+];
+const MODELS = STATIC_MODELS.map((m) => m.id);
+const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
+/**
+ * Efforts that work but change behavior enough to warn about. Kept in the
+ * catalog so `config set` doesn't call them unknown; excluded from wizard
+ * suggestions.
+ */
+export const EFFORT_ADVISORIES = {
+    ultra: "ultra enables automatic task delegation; the reviewer may spawn sub-agents, increasing time and cost.",
+};
+// Tolerant on purpose: `codex debug models` is a debug command whose shape
+// can change. Only `slug` is required; unknown fields are stripped.
+const CatalogEntrySchema = z.object({
+    slug: z.string(),
+    visibility: z.string().optional(),
+    supported_reasoning_levels: z
+        .array(z.object({ effort: z.string() }))
+        .optional(),
+    default_reasoning_level: z.string().optional(),
+});
+const CatalogSchema = z.union([
+    z.object({ models: z.array(CatalogEntrySchema) }),
+    z.array(CatalogEntrySchema),
+]);
+/**
+ * Parse `codex debug models` stdout into visible models. Returns an error
+ * string instead of throwing so the caller can fall back and say why.
+ */
+export function parseCodexCatalog(stdout) {
+    let raw;
+    try {
+        raw = JSON.parse(stdout);
+    }
+    catch {
+        return { ok: false, reason: "output was not JSON" };
+    }
+    const parsed = CatalogSchema.safeParse(raw);
+    if (!parsed.success)
+        return { ok: false, reason: "unrecognized catalog shape" };
+    const entries = Array.isArray(parsed.data) ? parsed.data : parsed.data.models;
+    const models = entries
+        .filter((e) => e.visibility !== "hide")
+        .map((e) => ({
+        id: e.slug,
+        efforts: (e.supported_reasoning_levels ?? []).map((l) => l.effort),
+        ...(e.default_reasoning_level ? { defaultEffort: e.default_reasoning_level } : {}),
+    }));
+    if (models.length === 0)
+        return { ok: false, reason: "catalog listed no models" };
+    return { ok: true, models };
+}
 /**
  * Classify a CLI invocation failure as `capability` (downgrade-eligible) or
  * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
@@ -185,6 +246,7 @@ export function classifyError(evidence, exitCode, overrides = {}) {
 export class CodexProvider {
     name = "codex";
     capabilityCache = null;
+    catalogCache = null;
     async invoke(prompt, options) {
         assertMutuallyExclusiveSessions(this.name, options);
         // codex doesn't accept an externally-generated session UUID. The first
@@ -338,6 +400,45 @@ export class CodexProvider {
     }
     getModels() {
         return MODELS;
+    }
+    async getModelCatalog() {
+        if (this.catalogCache)
+            return this.catalogCache;
+        let reason;
+        try {
+            const result = await execa("codex", ["debug", "models"], {
+                preferLocal: true,
+                timeout: 5_000,
+                reject: false,
+            });
+            if (result.exitCode === 0) {
+                const parsed = parseCodexCatalog(result.stdout ?? "");
+                if (parsed.ok) {
+                    this.catalogCache = buildCatalog("live", parsed.models, {
+                        advisories: EFFORT_ADVISORIES,
+                    });
+                    return this.catalogCache;
+                }
+                reason = parsed.reason;
+            }
+            else {
+                // With reject: false, a spawn failure (codex not installed)
+                // resolves with no exitCode and an ENOENT-style `code`.
+                reason = result.timedOut
+                    ? "timed out"
+                    : result.exitCode === undefined
+                        ? `could not run codex${result.code ? ` (${result.code})` : ""}`
+                        : `exit ${result.exitCode}`;
+            }
+        }
+        catch (error) {
+            reason = error instanceof Error ? error.message : "could not run codex";
+        }
+        this.catalogCache = buildCatalog("static", STATIC_MODELS, {
+            advisories: EFFORT_ADVISORIES,
+            note: `codex model discovery failed (${reason}); showing built-in list`,
+        });
+        return this.catalogCache;
     }
     getEffortLevels() {
         return EFFORT_LEVELS;

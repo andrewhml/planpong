@@ -42,4 +42,28 @@ export function summarizeStderr(text, max = 800) {
 export function logClassificationFailure(providerName, exitCode, stderr) {
     process.stderr.write(`[${providerName}-provider] exit=${exitCode} stderr=${summarizeStderr(stderr ?? "").replace(/\n/g, " | ")}\n`);
 }
+/**
+ * Build a catalog from per-model effort lists. `efforts` is the
+ * intersection across models that report efforts (safe for whichever model
+ * the CLI picks by default); `allEfforts` is the union. Order follows the
+ * first model that lists each level.
+ */
+export function buildCatalog(source, models, options = {}) {
+    const withEfforts = models.filter((m) => m.efforts.length > 0);
+    const allEfforts = [];
+    for (const m of withEfforts) {
+        for (const e of m.efforts)
+            if (!allEfforts.includes(e))
+                allEfforts.push(e);
+    }
+    const efforts = allEfforts.filter((e) => withEfforts.every((m) => m.efforts.includes(e)));
+    return {
+        source,
+        models,
+        efforts,
+        allEfforts,
+        advisories: options.advisories ?? {},
+        ...(options.note ? { note: options.note } : {}),
+    };
+}
 //# sourceMappingURL=shared.js.map

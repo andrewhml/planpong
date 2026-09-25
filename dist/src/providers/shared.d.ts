@@ -1,4 +1,4 @@
-import type { InvokeOptions } from "./types.js";
+import type { InvokeOptions, ModelCatalog, ModelInfo } from "./types.js";
 /**
  * Reject the impossible state where a caller asks the provider to both
  * initialize a fresh session AND resume an existing one. The operations-layer
@@ -22,3 +22,13 @@ export declare function summarizeStderr(text: string, max?: number): string;
  * which CLI failed.
  */
 export declare function logClassificationFailure(providerName: string, exitCode: number, stderr: string | undefined): void;
+/**
+ * Build a catalog from per-model effort lists. `efforts` is the
+ * intersection across models that report efforts (safe for whichever model
+ * the CLI picks by default); `allEfforts` is the union. Order follows the
+ * first model that lists each level.
+ */
+export declare function buildCatalog(source: ModelCatalog["source"], models: ModelInfo[], options?: {
+    advisories?: Record<string, string>;
+    note?: string;
+}): ModelCatalog;

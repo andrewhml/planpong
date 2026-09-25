@@ -1,10 +1,12 @@
 import { execa } from "execa";
 import {
   assertMutuallyExclusiveSessions,
+  buildCatalog,
   logClassificationFailure,
   summarizeStderr,
 } from "./shared.js";
 import type {
+  ModelCatalog,
   Provider,
   InvokeOptions,
   ProviderResponse,
@@ -249,5 +251,13 @@ export class GeminiProvider implements Provider {
 
   getEffortLevels(): string[] {
     return ["default"];
+  }
+
+  /** Static: gemini has no model listing command and no effort flag. */
+  async getModelCatalog(): Promise<ModelCatalog> {
+    return buildCatalog(
+      "static",
+      MODELS.map((id) => ({ id, efforts: [] })),
+    );
   }
 }

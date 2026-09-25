@@ -1,4 +1,4 @@
-import type { InvokeOptions } from "./types.js";
+import type { InvokeOptions, ModelCatalog, ModelInfo } from "./types.js";
 
 /**
  * Reject the impossible state where a caller asks the provider to both
@@ -58,4 +58,33 @@ export function logClassificationFailure(
   process.stderr.write(
     `[${providerName}-provider] exit=${exitCode} stderr=${summarizeStderr(stderr ?? "").replace(/\n/g, " | ")}\n`,
   );
+}
+
+/**
+ * Build a catalog from per-model effort lists. `efforts` is the
+ * intersection across models that report efforts (safe for whichever model
+ * the CLI picks by default); `allEfforts` is the union. Order follows the
+ * first model that lists each level.
+ */
+export function buildCatalog(
+  source: ModelCatalog["source"],
+  models: ModelInfo[],
+  options: { advisories?: Record<string, string>; note?: string } = {},
+): ModelCatalog {
+  const withEfforts = models.filter((m) => m.efforts.length > 0);
+  const allEfforts: string[] = [];
+  for (const m of withEfforts) {
+    for (const e of m.efforts) if (!allEfforts.includes(e)) allEfforts.push(e);
+  }
+  const efforts = allEfforts.filter((e) =>
+    withEfforts.every((m) => m.efforts.includes(e)),
+  );
+  return {
+    source,
+    models,
+    efforts,
+    allEfforts,
+    advisories: options.advisories ?? {},
+    ...(options.note ? { note: options.note } : {}),
+  };
 }

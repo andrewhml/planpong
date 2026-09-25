@@ -17,7 +17,7 @@ describe("getUnknownValueWarning", () => {
 
   it("returns null for a known model on the active provider", () => {
     expect(getUnknownValueWarning("planner.model", "opus", "claude")).toBeNull();
-    expect(getUnknownValueWarning("reviewer.model", "gpt-5.3-codex", "codex")).toBeNull();
+    expect(getUnknownValueWarning("reviewer.model", "gpt-6-astra", "codex")).toBeNull();
   });
 
   it("warns for an unknown model with the provider's enumerated list", () => {

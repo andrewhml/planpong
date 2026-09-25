@@ -1,4 +1,4 @@
-import type { Provider, InvokeOptions, ProviderResponse, ProviderError } from "./types.js";
+import type { ModelCatalog, Provider, InvokeOptions, ProviderResponse, ProviderError } from "./types.js";
 /**
  * Build argv for `gemini -p`. Pure function — no I/O.
  *
@@ -81,4 +81,6 @@ export declare class GeminiProvider implements Provider {
     markNonCapable(): void;
     getModels(): string[];
     getEffortLevels(): string[];
+    /** Static: gemini has no model listing command and no effort flag. */
+    getModelCatalog(): Promise<ModelCatalog>;
 }

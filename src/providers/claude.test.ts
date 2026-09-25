@@ -5,6 +5,8 @@ import {
   extractEnvelopeError,
   extractStructuredOutput,
   interpretStructuredResult,
+  parseClaudeHelp,
+  resolveEffortArgs,
 } from "./claude.js";
 
 // Captured 2026-09-25 from claude 2.1.282 with --model claude-nonexistent-9
@@ -119,15 +121,19 @@ describe("ClaudeProvider", () => {
     expect(new ClaudeProvider().name).toBe("claude");
   });
 
-  it("getModels returns opus first as the highest-reasoning default", () => {
-    const models = new ClaudeProvider().getModels();
-    expect(models[0]).toBe("opus");
-    expect(models).toContain("sonnet");
-    expect(models).toContain("haiku");
+  it("getModels returns the self-updating aliases, fable first", () => {
+    expect(new ClaudeProvider().getModels()).toEqual(["fable", "opus", "sonnet", "haiku"]);
   });
 
-  it("getEffortLevels returns ['default'] (effort maps to model selection)", () => {
-    expect(new ClaudeProvider().getEffortLevels()).toEqual(["default"]);
+  it("getEffortLevels returns the --effort values", () => {
+    expect(new ClaudeProvider().getEffortLevels()).toEqual(["low", "medium", "high", "xhigh", "max"]);
+  });
+
+  it("getModelCatalog is static with every alias accepting every effort", async () => {
+    const catalog = await new ClaudeProvider().getModelCatalog();
+    expect(catalog.source).toBe("static");
+    expect(catalog.models.map((m) => m.id)).toEqual(["fable", "opus", "sonnet", "haiku"]);
+    expect(catalog.efforts).toEqual(["low", "medium", "high", "xhigh", "max"]);
   });
 
   it("invoke throws when both newSessionId and resumeSessionId are set", async () => {
@@ -205,5 +211,80 @@ describe("interpretStructuredResult", () => {
 
   it("unknown option on stderr with empty stdout stays capability (unchanged)", () => {
     expect(classifyError("error: unknown option '--json-schema'", 1).kind).toBe("capability");
+  });
+});
+
+// Excerpt of `claude --help` from claude 2.1.282.
+const HELP_WITH_EFFORT = [
+  "  --disallowedTools, --disallowed-tools <tools...>",
+  "  --effort <level>                      Effort level for the current session",
+  "                                        (low, medium, high, xhigh, max)",
+  "  --environment <environment_id>        Create a new cloud session that runs on",
+  "  --json-schema <schema>                JSON Schema for structured output",
+].join("\n");
+const HELP_WITHOUT_EFFORT = "  --json-schema <schema>   JSON Schema for structured output\n  --model <model>  Model";
+
+describe("parseClaudeHelp", () => {
+  it("reads --effort support and its advertised values", () => {
+    expect(parseClaudeHelp(HELP_WITH_EFFORT)).toEqual({
+      supportsJsonSchema: true,
+      supportsEffort: true,
+      advertisedEfforts: ["low", "medium", "high", "xhigh", "max"],
+    });
+  });
+
+  it("reports no effort support on an older CLI", () => {
+    expect(parseClaudeHelp(HELP_WITHOUT_EFFORT)).toEqual({
+      supportsJsonSchema: true,
+      supportsEffort: false,
+      advertisedEfforts: null,
+    });
+  });
+
+  it("does not borrow a parenthetical from the next option", () => {
+    const help = "  --effort <level>   Effort level\n  --other <x>   Something (a, b)";
+    expect(parseClaudeHelp(help).advertisedEfforts).toBeNull();
+  });
+});
+
+describe("resolveEffortArgs", () => {
+  const current = parseClaudeHelp(HELP_WITH_EFFORT);
+
+  it("passes --effort when set and advertised", () => {
+    expect(resolveEffortArgs("high", current)).toEqual({ args: ["--effort", "high"] });
+  });
+
+  it("omits the flag for unset and 'default'", () => {
+    expect(resolveEffortArgs(undefined, current)).toEqual({ args: [] });
+    expect(resolveEffortArgs("default", current)).toEqual({ args: [] });
+  });
+
+  it("omits with a warning when the CLI lacks --effort", () => {
+    const r = resolveEffortArgs("high", parseClaudeHelp(HELP_WITHOUT_EFFORT));
+    expect(r.args).toEqual([]);
+    expect(r.warning).toMatch(/does not support --effort; ignoring effort=high/);
+  });
+
+  it("omits with a warning naming valid values when the value is not advertised", () => {
+    const r = resolveEffortArgs("ultra", current);
+    expect(r.args).toEqual([]);
+    expect(r.warning).toContain("Valid values: low, medium, high, xhigh, max");
+  });
+
+  it("passes the value through when help lists no values", () => {
+    const help = { supportsJsonSchema: true, supportsEffort: true, advertisedEfforts: null };
+    expect(resolveEffortArgs("max", help)).toEqual({ args: ["--effort", "max"] });
+  });
+});
+
+describe("effort warnings never become failures", () => {
+  it("stdout present with an Unknown --effort warning on stderr is ok and not capability", () => {
+    const env = JSON.stringify({ type: "result", subtype: "success", is_error: false, structured_output: { a: 1 } });
+    const r = interpretStructuredResult({
+      stdout: env,
+      stderr: "Warning: Unknown --effort value 'bogus', ignoring it and using the default effort.",
+      exitCode: 0,
+    });
+    expect(r.ok).toBe(true);
   });
 });

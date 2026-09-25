@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions, logClassificationFailure, summarizeStderr, } from "./shared.js";
+import { assertMutuallyExclusiveSessions, buildCatalog, logClassificationFailure, summarizeStderr, } from "./shared.js";
 const MODELS = ["gemini-2.5-pro", "gemini-3-pro", "gemini-2.5-flash"];
 /**
  * Build argv for `gemini -p`. Pure function — no I/O.
@@ -198,6 +198,10 @@ export class GeminiProvider {
     }
     getEffortLevels() {
         return ["default"];
+    }
+    /** Static: gemini has no model listing command and no effort flag. */
+    async getModelCatalog() {
+        return buildCatalog("static", MODELS.map((id) => ({ id, efforts: [] })));
     }
 }
 //# sourceMappingURL=gemini.js.map

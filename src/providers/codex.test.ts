@@ -6,7 +6,9 @@ import {
   extractCodexError,
   extractCodexThreadId,
   interpretCodexResult,
+  parseCodexCatalog,
 } from "./codex.js";
+import { buildCatalog } from "./shared.js";
 import { readFileSync } from "node:fs";
 
 const fixture = (name: string) =>
@@ -151,20 +153,20 @@ describe("CodexProvider", () => {
     expect(new CodexProvider().name).toBe("codex");
   });
 
-  it("getModels returns gpt-5.3-codex first", () => {
+  it("getModels returns the built-in snapshot of list-visible models", () => {
     const models = new CodexProvider().getModels();
-    expect(models[0]).toBe("gpt-5.3-codex");
-    expect(models).toContain("o3-pro");
-    expect(models).toContain("o3");
-    expect(models).toContain("o4-mini");
+    expect(models[0]).toBe("gpt-6-astra");
+    expect(models).toContain("gpt-5.5");
+    expect(models).not.toContain("gpt-5.3-codex");
   });
 
-  it("getEffortLevels returns the four codex levels", () => {
+  it("getEffortLevels returns the codex levels without ultra", () => {
     expect(new CodexProvider().getEffortLevels()).toEqual([
       "low",
       "medium",
       "high",
       "xhigh",
+      "max",
     ]);
   });
 
@@ -278,5 +280,49 @@ describe("interpretCodexResult", () => {
     const r = interpretCodexResult({ stdout, stderr: "", exitCode: 1, fileContent: null });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.kind).toBe("capability");
+  });
+});
+
+describe("parseCodexCatalog", () => {
+  const CATALOG = fixture("codex-debug-models.json");
+
+  it("parses the captured catalog and drops hidden models", () => {
+    const r = parseCodexCatalog(CATALOG);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const ids = r.models.map((m) => m.id);
+    expect(ids).toEqual([
+      "gpt-6-astra", "gpt-6-sol", "gpt-6-luna",
+      "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5",
+    ]);
+    expect(ids).not.toContain("gpt-reserve");
+    expect(r.models.find((m) => m.id === "gpt-5.5")?.efforts).toEqual(["low", "medium", "high", "xhigh"]);
+    expect(r.models.find((m) => m.id === "gpt-5.6-sol")?.defaultEffort).toBe("low");
+  });
+
+  it("accepts a bare array and entries with only a slug", () => {
+    const r = parseCodexCatalog(JSON.stringify([{ slug: "x" }]));
+    expect(r).toEqual({ ok: true, models: [{ id: "x", efforts: [] }] });
+  });
+
+  it("fails with a reason on malformed JSON", () => {
+    expect(parseCodexCatalog("{not json")).toEqual({ ok: false, reason: "output was not JSON" });
+  });
+
+  it("fails with a reason on an unknown shape", () => {
+    expect(parseCodexCatalog(JSON.stringify({ items: [] }))).toEqual({ ok: false, reason: "unrecognized catalog shape" });
+  });
+
+  it("fails when every model is hidden", () => {
+    const r = parseCodexCatalog(JSON.stringify({ models: [{ slug: "x", visibility: "hide" }] }));
+    expect(r).toEqual({ ok: false, reason: "catalog listed no models" });
+  });
+
+  it("builds an intersection that excludes max (gpt-5.5) and a union that includes ultra", () => {
+    const r = parseCodexCatalog(CATALOG);
+    if (!r.ok) throw new Error("fixture should parse");
+    const catalog = buildCatalog("live", r.models);
+    expect(catalog.efforts).toEqual(["low", "medium", "high", "xhigh"]);
+    expect(catalog.allEfforts).toEqual(["low", "medium", "high", "xhigh", "max", "ultra"]);
   });
 });

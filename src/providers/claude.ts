@@ -1,17 +1,80 @@
 import { execa } from "execa";
 import {
   assertMutuallyExclusiveSessions,
+  buildCatalog,
   logClassificationFailure,
   summarizeStderr,
 } from "./shared.js";
 import type {
+  ModelCatalog,
   Provider,
   InvokeOptions,
   ProviderResponse,
   ProviderError,
 } from "./types.js";
 
-const MODELS = ["opus", "sonnet", "haiku"];
+// Aliases resolve to the latest model on the CLI side, so this list stays
+// current without discovery (claude has no command that lists models).
+const MODELS = ["fable", "opus", "sonnet", "haiku"];
+const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
+
+export interface ClaudeHelpInfo {
+  supportsJsonSchema: boolean;
+  supportsEffort: boolean;
+  /** Values listed in the `--effort` help block, or null if not listed. */
+  advertisedEfforts: string[] | null;
+}
+
+/** Pure parse of `claude --help` output. */
+export function parseClaudeHelp(helpText: string): ClaudeHelpInfo {
+  const supportsEffort = /--effort\b/.test(helpText);
+  let advertisedEfforts: string[] | null = null;
+  if (supportsEffort) {
+    // The option's description can wrap; stop at the next option line.
+    const block = helpText.split(/--effort\b/)[1]?.split(/\n\s{2}-/)[0] ?? "";
+    const listed = block.match(/\(([^)]+)\)/)?.[1];
+    if (listed) advertisedEfforts = listed.split(",").map((v) => v.trim()).filter(Boolean);
+  }
+  return {
+    supportsJsonSchema: helpText.includes("--json-schema"),
+    supportsEffort,
+    advertisedEfforts,
+  };
+}
+
+/**
+ * Decide whether to pass `--effort`. The flag is dropped (with a warning)
+ * rather than sent when we know it won't take effect: claude ignores
+ * unknown values silently apart from a stderr line, and older CLIs reject
+ * the flag outright, which classifyError would misread as a structured
+ * output capability gap.
+ */
+export function resolveEffortArgs(
+  effort: string | undefined,
+  help: ClaudeHelpInfo,
+): { args: string[]; warning?: string } {
+  if (!effort || effort === "default") return { args: [] };
+  if (!help.supportsEffort) {
+    return {
+      args: [],
+      warning: `claude CLI does not support --effort; ignoring effort=${effort}. Upgrade claude to enable.`,
+    };
+  }
+  if (help.advertisedEfforts && !help.advertisedEfforts.includes(effort)) {
+    return {
+      args: [],
+      warning: `claude does not accept effort=${effort}; ignoring it. Valid values: ${help.advertisedEfforts.join(", ")}.`,
+    };
+  }
+  return { args: ["--effort", effort] };
+}
+
+const emittedWarnings = new Set<string>();
+function warnOnce(message: string): void {
+  if (emittedWarnings.has(message)) return;
+  emittedWarnings.add(message);
+  process.stderr.write(`[planpong] ${message}\n`);
+}
 
 /**
  * Build a clean env object with CLAUDECODE removed.
@@ -177,6 +240,23 @@ export class ClaudeProvider implements Provider {
   name = "claude";
 
   private capabilityCache: boolean | null = null;
+  private helpCache: Promise<ClaudeHelpInfo> | null = null;
+
+  /** Run `claude --help` once per instance; shared by all capability checks. */
+  private probeHelp(): Promise<ClaudeHelpInfo> {
+    if (!this.helpCache) {
+      this.helpCache = execa("claude", ["--help"], {
+        preferLocal: true,
+        timeout: 5_000,
+        reject: false,
+        env: cleanEnv(),
+        extendEnv: false,
+      })
+        .then((r) => parseClaudeHelp(`${r.stdout ?? ""}\n${r.stderr ?? ""}`))
+        .catch(() => parseClaudeHelp(""));
+    }
+    return this.helpCache;
+  }
 
   async invoke(
     prompt: string,
@@ -212,6 +292,12 @@ export class ClaudeProvider implements Provider {
       args.push("--model", options.model);
     }
 
+    if (options.effort && options.effort !== "default") {
+      const effort = resolveEffortArgs(options.effort, await this.probeHelp());
+      if (effort.warning) warnOnce(effort.warning);
+      args.push(...effort.args);
+    }
+
     // Persistent conversation. `--session-id` creates a new session with the
     // given UUID; `--resume` continues an existing one. Mutual exclusion is
     // enforced at the top of invoke() via assertMutuallyExclusiveSessions.
@@ -243,6 +329,8 @@ export class ClaudeProvider implements Provider {
       // Canonical session ID for the response: echoes the input UUID
       // (claude accepts external UUIDs as session IDs, so input == output).
       const sessionId = options.newSessionId ?? options.resumeSessionId;
+      const effortWarning = result.stderr?.match(/Unknown --effort value[^\n]*/)?.[0];
+      if (effortWarning) warnOnce(`claude: ${effortWarning}`);
       if (result.stdout && result.stdout.trim().length > 0) {
         if (options.jsonSchema) {
           const interpreted = interpretStructuredResult({
@@ -298,15 +386,7 @@ export class ClaudeProvider implements Provider {
       return this.capabilityCache;
     }
     try {
-      const result = await execa("claude", ["--help"], {
-        preferLocal: true,
-        timeout: 5_000,
-        reject: false,
-        env: cleanEnv(),
-        extendEnv: false,
-      });
-      const helpText = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
-      const supported = helpText.includes("--json-schema");
+      const supported = (await this.probeHelp()).supportsJsonSchema;
       this.capabilityCache = supported;
       if (!supported) {
         process.stderr.write(
@@ -329,7 +409,13 @@ export class ClaudeProvider implements Provider {
   }
 
   getEffortLevels(): string[] {
-    // Claude effort maps to model selection — opus is highest reasoning
-    return ["default"];
+    return EFFORT_LEVELS;
+  }
+
+  async getModelCatalog(): Promise<ModelCatalog> {
+    return buildCatalog(
+      "static",
+      MODELS.map((id) => ({ id, efforts: EFFORT_LEVELS })),
+    );
   }
 }

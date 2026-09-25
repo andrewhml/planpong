@@ -1,4 +1,21 @@
-import type { Provider, InvokeOptions, ProviderResponse, ProviderError } from "./types.js";
+import type { ModelCatalog, ModelInfo, Provider, InvokeOptions, ProviderResponse, ProviderError } from "./types.js";
+/**
+ * Efforts that work but change behavior enough to warn about. Kept in the
+ * catalog so `config set` doesn't call them unknown; excluded from wizard
+ * suggestions.
+ */
+export declare const EFFORT_ADVISORIES: Record<string, string>;
+/**
+ * Parse `codex debug models` stdout into visible models. Returns an error
+ * string instead of throwing so the caller can fall back and say why.
+ */
+export declare function parseCodexCatalog(stdout: string): {
+    ok: true;
+    models: ModelInfo[];
+} | {
+    ok: false;
+    reason: string;
+};
 /**
  * Classify a CLI invocation failure as `capability` (downgrade-eligible) or
  * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
@@ -56,10 +73,12 @@ export declare function classifyError(evidence: string, exitCode: number, overri
 export declare class CodexProvider implements Provider {
     name: string;
     private capabilityCache;
+    private catalogCache;
     invoke(prompt: string, options: InvokeOptions): Promise<ProviderResponse>;
     isAvailable(): Promise<boolean>;
     checkStructuredOutputSupport(): Promise<boolean>;
     markNonCapable(): void;
     getModels(): string[];
+    getModelCatalog(): Promise<ModelCatalog>;
     getEffortLevels(): string[];
 }
