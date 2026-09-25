@@ -21,5 +21,7 @@ jobs:
       # npm on older runner images has broken dependencies (missing
       # promise-retry) that fail the upgrade step.
       - run: npm install
+      - run: npm run typecheck
+      - run: npm test
       - run: npm run build
       - run: npm publish --provenance --access public
