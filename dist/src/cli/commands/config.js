@@ -1,18 +1,22 @@
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import { loadConfig, findConfigPath } from "../../config/loader.js";
-import { setConfigValue, getValidKeys, getKeyMetadata, getKeyMeta } from "../../config/mutate.js";
+import { setConfigValue, unsetConfigValue, getValidKeys, getKeyMetadata, getKeyMeta, } from "../../config/mutate.js";
 import { getAllProviders, getProvider } from "../../providers/registry.js";
+const registryCatalog = async (name) => (await getProvider(name)?.getModelCatalog()) ?? null;
 /**
- * Soft-validate a config value against the enumerated lists in the provider
- * registry. Returns a warning string if the value isn't recognized, or null
- * if it's known (or there's nothing to check against).
+ * Soft-validate a config value against the provider's model catalog.
+ * Returns a warning string if the value isn't recognized or deserves a
+ * caveat, or null if it's fine (or there's nothing to check against).
  *
- * Soft because providers accept newer model IDs that may not be in the
- * hardcoded MODELS array — we want to nudge typos without blocking power
- * users from setting valid-but-unenumerated values.
+ * Soft because providers accept model IDs the catalog doesn't list; we
+ * nudge typos and incompatible combinations without blocking.
+ *
+ * Effort checks depend on the role's pinned model: with one, check that
+ * model's levels; without one, a level missing from some models gets a
+ * model-dependent warning rather than "unknown".
  */
-export function getUnknownValueWarning(key, value, providerForRole) {
+export async function getUnknownValueWarning(key, value, providerForRole, opts = {}) {
     if (key === "planner.provider" || key === "reviewer.provider") {
         const valid = getAllProviders().map((p) => p.name);
         if (valid.includes(value))
@@ -25,18 +29,45 @@ export function getUnknownValueWarning(key, value, providerForRole) {
         return null;
     if (!providerForRole)
         return null;
-    const provider = getProvider(providerForRole);
-    if (!provider)
+    const catalog = await (opts.getCatalog ?? registryCatalog)(providerForRole);
+    if (!catalog)
         return null;
-    const valid = isModel ? provider.getModels() : provider.getEffortLevels();
-    if (valid.length === 0)
+    const hint = `The provider may still accept it. Run 'planpong config providers' to see current lists.`;
+    if (isModel) {
+        const ids = catalog.models.map((m) => m.id);
+        if (ids.length === 0 || ids.includes(value))
+            return null;
+        return `Warning: "${value}" is not in ${providerForRole}'s known model list (${ids.join(", ")}). ${hint}`;
+    }
+    if (catalog.allEfforts.length === 0)
         return null;
-    if (valid.includes(value))
-        return null;
-    const what = isModel ? "model" : "effort level";
-    return (`Warning: "${value}" is not in ${providerForRole}'s known ${what} list ` +
-        `(${valid.join(", ")}). The provider may still accept it. ` +
-        `Run 'planpong config providers' to see current lists.`);
+    const role = key.split(".")[0];
+    const advisory = catalog.advisories[value];
+    const pinned = opts.pinnedModel
+        ? catalog.models.find((m) => m.id === opts.pinnedModel)
+        : undefined;
+    let warning = null;
+    if (pinned) {
+        if (!pinned.efforts.includes(value)) {
+            warning =
+                `Warning: "${value}" is not supported by ${pinned.id} ` +
+                    `(${pinned.efforts.join(", ")}). ${hint}`;
+        }
+    }
+    else if (!catalog.allEfforts.includes(value)) {
+        warning =
+            `Warning: "${value}" is not in ${providerForRole}'s known effort level list ` +
+                `(${catalog.allEfforts.join(", ")}). ${hint}`;
+    }
+    else if (!catalog.efforts.includes(value)) {
+        warning =
+            `Warning: "${value}" is not supported by every ${providerForRole} model; ` +
+                `pin ${role}.model to one that supports it.`;
+    }
+    if (advisory) {
+        warning = warning ? `${warning}\n  Note: ${advisory}` : `Note: ${advisory}`;
+    }
+    return warning;
 }
 function formatKeyList() {
     return getKeyMetadata()
@@ -82,7 +113,7 @@ export function registerConfigCommand(program) {
     configCmd
         .command("providers")
         .description("List providers with their valid model and effort values")
-        .action(() => printProvidersTable());
+        .action(async () => printProvidersTable());
     configCmd
         .command("path")
         .description("Print the path to the active config file")
@@ -103,7 +134,7 @@ export function registerConfigCommand(program) {
         .argument("<key>", "Config key (run 'planpong config keys' to see all)")
         .argument("<value>", "Value to set")
         .addHelpText("after", `\nAvailable config keys:\n${formatKeyList()}`)
-        .action((key, value) => {
+        .action(async (key, value) => {
         const cwd = process.cwd();
         const meta = getKeyMeta(key);
         if (!meta) {
@@ -133,13 +164,42 @@ export function registerConfigCommand(program) {
             // reject because providers accept additional model IDs beyond the
             // enumerated lists — but a typo deserves a nudge.
             const role = parts[0];
-            const providerForRole = role === "planner" || role === "reviewer"
-                ? effective[role]?.provider
+            const roleConfig = role === "planner" || role === "reviewer"
+                ? effective[role]
                 : undefined;
-            const warning = getUnknownValueWarning(key, value, providerForRole);
+            const warning = await getUnknownValueWarning(key, value, roleConfig?.provider, {
+                pinnedModel: roleConfig?.model,
+            });
             if (warning) {
                 console.error(`\n  ${warning}`);
             }
+        }
+        catch (err) {
+            console.error(`Error: ${err.message}`);
+            process.exitCode = 1;
+        }
+    });
+    configCmd
+        .command("unset")
+        .description("Remove a config value so its default applies (for model/effort: the provider CLI's own default)")
+        .argument("<key>", "Config key (run 'planpong config keys' to see all)")
+        .addHelpText("after", `\nAvailable config keys:\n${formatKeyList()}`)
+        .action((key) => {
+        const cwd = process.cwd();
+        if (!getKeyMeta(key)) {
+            console.error(`Unknown config key: "${key}"\n`);
+            printKeysTable();
+            process.exitCode = 1;
+            return;
+        }
+        try {
+            const result = unsetConfigValue(cwd, key);
+            if (result.before === undefined) {
+                console.log(`${key} is not set in ${result.configPath}; nothing to do.`);
+                return;
+            }
+            console.log(`Updated ${result.configPath}`);
+            console.log(`  ${key}: ${String(result.before)} → (unset)`);
         }
         catch (err) {
             console.error(`Error: ${err.message}`);
@@ -167,14 +227,32 @@ function printKeysTable() {
     }
     console.log("\nFor per-provider model and effort values, run 'planpong config providers'.");
 }
-function printProvidersTable() {
+async function printProvidersTable() {
     const providers = getAllProviders();
     for (const p of providers) {
-        const models = p.getModels();
-        const efforts = p.getEffortLevels();
-        console.log(p.name);
-        console.log(`  models:  ${models.length > 0 ? models.join(", ") : "(none enumerated)"}`);
-        console.log(`  effort:  ${efforts.length > 0 ? efforts.join(", ") : "(none enumerated)"}`);
+        const catalog = await p.getModelCatalog();
+        const source = catalog.source === "live" ? "live" : "built-in";
+        console.log(`${p.name}  (${source} list)`);
+        if (catalog.note)
+            console.log(`  note:    ${catalog.note}`);
+        if (catalog.models.length === 0) {
+            console.log("  models:  (none enumerated)");
+        }
+        else if (catalog.source === "live") {
+            const width = Math.max(...catalog.models.map((m) => m.id.length)) + 2;
+            console.log("  models:");
+            for (const m of catalog.models) {
+                const efforts = m.efforts.length > 0 ? `effort: ${m.efforts.join(", ")}` : "";
+                console.log(`    ${m.id.padEnd(width)}${efforts}`);
+            }
+        }
+        else {
+            console.log(`  models:  ${catalog.models.map((m) => m.id).join(", ")}`);
+        }
+        console.log(`  effort:  ${catalog.allEfforts.length > 0 ? catalog.allEfforts.join(", ") : "(none)"}`);
+        for (const [level, text] of Object.entries(catalog.advisories)) {
+            console.log(`  ${level}:   ${text}`);
+        }
         console.log();
     }
     console.log("Note: providers may accept additional model IDs not listed here (e.g. newly-released versions).");

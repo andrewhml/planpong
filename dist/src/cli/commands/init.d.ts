@@ -1,12 +1,20 @@
 import type { Command } from "commander";
 import { type BatchPick } from "../../config/mutate.js";
+import type { ModelCatalog } from "../../providers/types.js";
+/**
+ * Wizard answer meaning "don't pin this; let the provider CLI decide". A
+ * symbol, never a string, so it can't collide with a model name or be
+ * written to disk.
+ */
+export declare const CLI_DEFAULT: unique symbol;
+export type WizardChoice = string | typeof CLI_DEFAULT;
 export interface WizardAnswers {
     plannerProvider: string;
-    plannerModel: string;
-    plannerEffort?: string;
+    plannerModel: WizardChoice;
+    plannerEffort?: WizardChoice;
     reviewerProvider: string;
-    reviewerModel: string;
-    reviewerEffort?: string;
+    reviewerModel: WizardChoice;
+    reviewerEffort?: WizardChoice;
     maxRounds: number;
     plansDir: string;
     plannerMode: "inline" | "external";
@@ -31,17 +39,48 @@ export interface DiskSnapshot {
     human_in_loop?: boolean;
 }
 /**
- * Map a codex effort level to a human-readable label for the wizard.
+ * Map an effort level to a human-readable label for the wizard.
  * Falls through to the raw value for unknown levels (future-proofing
  * against new effort tiers).
  */
 export declare function effortLabel(level: string): string;
+interface Choice {
+    name: string;
+    value: WizardChoice;
+}
 /**
- * Read planpong.yaml directly into a partial snapshot. Unlike loadConfig(),
- * this does NOT merge defaults — fields the user never wrote remain
- * undefined so the wizard can omit them from the batch write.
+ * Model choices for one role. The old model is offered only when the
+ * provider is unchanged: a pinned model outside the catalog stays
+ * selectable (and preselected) so re-running the wizard never silently
+ * drops a pin, while switching provider never carries a model across.
  */
-export declare function readDiskSnapshot(cwd: string): DiskSnapshot;
+export declare function buildModelChoices(providerName: string, catalog: ModelCatalog, providerChanged: boolean, diskModel: string | undefined): {
+    choices: Choice[];
+    default: WizardChoice;
+};
+/**
+ * Effort choices for one role, or null when the provider has no effort
+ * levels. With a pinned catalog model, offer that model's levels; with CLI
+ * default, only levels every model accepts (the intersection); with an
+ * unknown pinned model, the union. Advisory levels (codex `ultra`) are not
+ * suggested, except a current pin that is kept visible.
+ */
+export declare function buildEffortChoices(catalog: ModelCatalog, model: WizardChoice, providerChanged: boolean, diskEffort: string | undefined): {
+    choices: Choice[];
+    default: WizardChoice;
+    hint?: string;
+} | null;
+/**
+ * Read the config file the writer will modify into a partial snapshot.
+ * Resolves with findConfigPath (walks parent directories), the same lookup
+ * setConfigValuesBatch uses, so the wizard's view and its write target are
+ * the same file. Unlike loadConfig(), this does NOT merge defaults: fields
+ * the user never wrote remain undefined so the wizard can omit them.
+ */
+export declare function readDiskSnapshot(cwd: string): {
+    path: string | null;
+    snapshot: DiskSnapshot;
+};
 /**
  * Pure formatter for the post-write summary. The auth reminder appears
  * whenever gemini is picked for any role; it is intentionally a static
@@ -65,3 +104,4 @@ export declare function isInteractiveTty(stdin: {
     isTTY?: boolean;
 }): boolean;
 export declare function registerInitCommand(program: Command): void;
+export {};

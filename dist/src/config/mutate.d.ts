@@ -13,10 +13,16 @@ export interface SetConfigResult {
     after: unknown;
     created: boolean;
 }
-export interface BatchPick {
+/** Set a key to a value, or remove it so the default (or CLI default) applies. */
+export type BatchPick = {
     key: string;
     rawValue: string;
-}
+    unset?: never;
+} | {
+    key: string;
+    unset: true;
+    rawValue?: never;
+};
 export interface BatchPickResult {
     key: string;
     before: unknown;
@@ -42,7 +48,16 @@ export declare function getKeyMeta(key: string): KeyMeta | undefined;
  */
 export declare function setConfigValuesBatch(cwd: string, picks: BatchPick[], opts?: {
     dryRun?: boolean;
+    /**
+     * Write to this file instead of re-resolving. The wizard passes the
+     * path it read its snapshot from so both target the same file.
+     */
+    configPath?: string;
 }): SetConfigValuesBatchResult;
+/** Remove one key so its default (or the provider CLI's default) applies. */
+export declare function unsetConfigValue(cwd: string, key: string, opts?: {
+    dryRun?: boolean;
+}): SetConfigResult;
 export declare function setConfigValue(cwd: string, key: string, rawValue: string, opts?: {
     dryRun?: boolean;
 }): SetConfigResult;
