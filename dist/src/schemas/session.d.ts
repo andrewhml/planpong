@@ -38,6 +38,7 @@ export declare const SessionSchema: z.ZodObject<{
     reviewerSessionId: z.ZodOptional<z.ZodString>;
     reviewerSessionInitialized: z.ZodOptional<z.ZodBoolean>;
     plannerMode: z.ZodDefault<z.ZodEnum<["inline", "external"]>>;
+    inlineClient: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     id: string;
     status: "aborted" | "approved" | "blocked" | "planning" | "in_review";
@@ -61,6 +62,7 @@ export declare const SessionSchema: z.ZodObject<{
     initialLineCount?: number | undefined;
     reviewerSessionId?: string | undefined;
     reviewerSessionInitialized?: boolean | undefined;
+    inlineClient?: string | undefined;
 }, {
     id: string;
     status: "aborted" | "approved" | "blocked" | "planning" | "in_review";
@@ -84,5 +86,6 @@ export declare const SessionSchema: z.ZodObject<{
     reviewerSessionId?: string | undefined;
     reviewerSessionInitialized?: boolean | undefined;
     plannerMode?: "external" | "inline" | undefined;
+    inlineClient?: string | undefined;
 }>;
 export type Session = z.infer<typeof SessionSchema>;

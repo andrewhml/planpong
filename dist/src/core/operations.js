@@ -62,6 +62,17 @@ export function formatDuration(ms) {
         return `${seconds}s`;
     return `${minutes}m ${remainingSeconds}s`;
 }
+/**
+ * Label for the planner side of the status line. In inline mode the
+ * calling agent revises the plan and the configured planner never runs, so
+ * the label names the MCP client instead (the protocol does not expose the
+ * client's model). Falls back to plain `inline` when the client is unknown.
+ */
+export function formatPlannerLabel(planner, plannerMode, inlineClient) {
+    if (plannerMode !== "inline")
+        return formatProviderLabel(planner);
+    return inlineClient ? `inline(${inlineClient})` : "inline";
+}
 export function formatProviderLabel(provider) {
     const hasModel = provider.model && provider.model !== "default";
     const hasEffort = provider.effort && provider.effort !== "default";
@@ -140,7 +151,7 @@ export function phaseExtrasFromFeedback(phase, feedback) {
     return phaseExtras;
 }
 export function buildStatusLine(session, config, issueTrajectory, accepted, rejected, deferred, linesAdded, linesRemoved, elapsed, phaseExtras) {
-    const plannerLabel = formatProviderLabel(config.planner);
+    const plannerLabel = formatPlannerLabel(config.planner, session.plannerMode, session.inlineClient);
     const reviewerLabel = formatProviderLabel(config.reviewer);
     const trajectory = formatTrajectory(issueTrajectory);
     const tallies = formatTallies(accepted, rejected, deferred);
@@ -204,17 +215,21 @@ export function updatePlanStatusLine(planContent, statusLine) {
  * Validates the file exists, creates a session directory, and writes
  * an initial status line to the plan.
  */
-export function initReviewSession(planPath, cwd, config) {
+export function initReviewSession(planPath, cwd, config, opts = {}) {
     if (!existsSync(planPath)) {
         throw new Error(`Plan file not found: ${planPath}`);
     }
     const relativePlanPath = relative(cwd, planPath);
     const originalContent = readFileSync(planPath, "utf-8");
     let planContent = originalContent;
-    const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${formatProviderLabel(config.planner)} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
+    const inlineClient = config.planner_mode === "inline" ? opts.inlineClient : undefined;
+    const plannerLabel = formatPlannerLabel(config.planner, config.planner_mode, inlineClient);
+    const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${plannerLabel} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
     planContent = updatePlanStatusLine(planContent, initialStatusLine);
     writeFileSync(planPath, planContent);
     const session = createSession(cwd, relativePlanPath, config.planner, config.reviewer, hashFile(planPath), config.planner_mode);
+    if (inlineClient)
+        session.inlineClient = inlineClient;
     session.initialLineCount = countLines(planContent);
     session.status = "in_review";
     writeInitialPlan(cwd, session.id, originalContent);

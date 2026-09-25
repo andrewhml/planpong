@@ -9,6 +9,8 @@ import {
   formatTallies,
   formatDuration,
   formatProviderLabel,
+  formatPlannerLabel,
+  buildStatusLine,
   updatePlanStatusLine,
   writeStatusLineToPlan,
   initReviewSession,
@@ -22,6 +24,7 @@ import type { DirectionFeedback, ReviewFeedback, RiskFeedback } from "../schemas
 import type {
   Provider,
   InvokeOptions,
+  ModelCatalog,
   ProviderResponse,
 } from "../providers/types.js";
 import type { PlanpongConfig } from "../schemas/config.js";
@@ -352,6 +355,10 @@ class MockProvider implements Provider {
 
   getEffortLevels(): string[] {
     return ["default"];
+  }
+
+  async getModelCatalog(): Promise<ModelCatalog> {
+    return { source: "static", models: [], efforts: [], allEfforts: [], advisories: {} };
   }
 
   async checkStructuredOutputSupport(): Promise<boolean> {
@@ -1206,5 +1213,77 @@ describe("finalizeFeedback", () => {
     expect(session.currentRound).toBe(2);
     const reread = sessionModule.readSessionState(tmpDir, session.id);
     expect(reread?.currentRound).toBe(2);
+  });
+});
+
+describe("formatPlannerLabel", () => {
+  const planner = { provider: "claude", model: "claude-opus-4-6", effort: "high" };
+
+  it("external mode uses the configured planner", () => {
+    expect(formatPlannerLabel(planner, "external")).toBe("claude(claude-opus-4-6/high)");
+  });
+
+  it("inline mode names the MCP client, not the configured planner", () => {
+    expect(formatPlannerLabel(planner, "inline", "claude-code")).toBe("inline(claude-code)");
+  });
+
+  it("inline mode without a known client is plain 'inline'", () => {
+    expect(formatPlannerLabel(planner, "inline")).toBe("inline");
+  });
+});
+
+describe("planner label in status lines", () => {
+  let tmpDir: string;
+  let planPath: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "planpong-label-test-"));
+    mkdirSync(join(tmpDir, "docs", "plans"), { recursive: true });
+    planPath = join(tmpDir, "docs", "plans", "p.md");
+    writeFileSync(planPath, "# P\n\n**Status:** Draft\n\n## Steps\n- [ ] x\n");
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const config = (mode: "inline" | "external"): PlanpongConfig => ({
+    planner: { provider: "claude", model: "opus" },
+    reviewer: { provider: "codex", model: "gpt-6-astra" },
+    plans_dir: "docs/plans",
+    max_rounds: 10,
+    human_in_loop: false,
+    planner_mode: mode,
+  });
+
+  it("inline session: initial and later status lines name the client and persist it", () => {
+    const { session } = initReviewSession(planPath, tmpDir, config("inline"), {
+      inlineClient: "claude-code",
+    });
+    expect(readFileSync(planPath, "utf-8")).toContain(
+      "**planpong:** R0/10 | inline(claude-code) → codex(gpt-6-astra) | Awaiting review",
+    );
+    expect(session.inlineClient).toBe("claude-code");
+    const persisted = sessionModule.readSessionState(tmpDir, session.id)!;
+    expect(persisted.inlineClient).toBe("claude-code");
+    session.currentRound = 1;
+    const line = buildStatusLine(persisted, config("inline"), [], 0, 0, 0, 0, 0, 0);
+    expect(line).toContain("inline(claude-code) → codex(gpt-6-astra)");
+  });
+
+  it("external session ignores an inline client and uses the configured planner", () => {
+    const { session } = initReviewSession(planPath, tmpDir, config("external"), {
+      inlineClient: "claude-code",
+    });
+    expect(session.inlineClient).toBeUndefined();
+    expect(readFileSync(planPath, "utf-8")).toContain("claude(opus) → codex(gpt-6-astra)");
+  });
+
+  it("sessions written without inlineClient render plain 'inline'", () => {
+    const { session } = initReviewSession(planPath, tmpDir, config("inline"));
+    session.currentRound = 1;
+    expect(buildStatusLine(session, config("inline"), [], 0, 0, 0, 0, 0, 0)).toContain(
+      "inline → codex(gpt-6-astra)",
+    );
   });
 });

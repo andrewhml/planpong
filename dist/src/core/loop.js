@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { buildInitialPlanPrompt } from "../prompts/planner.js";
 import { createSession, writeSessionState } from "./session.js";
-import { hashFile, buildStatusLine, updatePlanStatusLine, formatProviderLabel, initReviewSession, runReviewRound, runRevisionRound, finalizeApproved, } from "./operations.js";
+import { hashFile, buildStatusLine, updatePlanStatusLine, formatPlannerLabel, formatProviderLabel, initReviewSession, runReviewRound, runRevisionRound, finalizeApproved, } from "./operations.js";
 function resolvePlanSlug(plansDir, name) {
     const slug = name ??
         `plan-${new Date().toISOString().slice(0, 10)}-${Date.now().toString(36)}`;
@@ -42,11 +42,13 @@ export async function runLoop(options) {
     const planPath = join(plansDir, filename);
     const relativePlanPath = relative(cwd, planPath);
     let planContent = planResponse.output;
-    const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${formatProviderLabel(config.planner)} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
+    // The CLI loop always runs the planner provider itself (external mode),
+    // whatever planner_mode the config defaults to.
+    const initialStatusLine = `**planpong:** R0/${config.max_rounds} | ${formatPlannerLabel(config.planner, "external")} → ${formatProviderLabel(config.reviewer)} | Awaiting review`;
     planContent = updatePlanStatusLine(planContent, initialStatusLine);
     writeFileSync(planPath, planContent);
     const initialLineCount = countLines(planContent);
-    const session = createSession(cwd, relativePlanPath, config.planner, config.reviewer, hashFile(planPath));
+    const session = createSession(cwd, relativePlanPath, config.planner, config.reviewer, hashFile(planPath), "external");
     session.status = "in_review";
     writeSessionState(cwd, session);
     await callbacks.onPlanGenerated(planPath, planContent);
@@ -144,7 +146,12 @@ export async function runLoop(options) {
 export async function runReviewLoop(options) {
     const { planPath, cwd, config, plannerProvider, reviewerProvider, callbacks, } = options;
     const startTime = Date.now();
-    const { session, planContent } = initReviewSession(planPath, cwd, config);
+    // CLI reviews run the planner provider (external mode); don't let the
+    // config's inline default mislabel the session.
+    const { session, planContent } = initReviewSession(planPath, cwd, {
+        ...config,
+        planner_mode: "external",
+    });
     const initialLineCount = countLines(planContent);
     await callbacks.onPlanGenerated(planPath, planContent);
     // Tracking stats
