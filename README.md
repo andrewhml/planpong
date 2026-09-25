@@ -23,6 +23,8 @@ You need at least **one AI CLI** installed and authenticated:
 If multiple are installed, planpong uses one for planning and a different one for reviewing (configurable). If only one is available, it auto-fallbacks to using that CLI for both roles.
 
 > **Note on gemini as reviewer:** the gemini CLI does not expose a stable session-resume mechanism, so reviewer rounds run without persistent context. Expect noticeably slower per-round wall time than claude or codex when gemini is the reviewer. The first time you load a config that selects gemini as reviewer, planpong prints a stderr warning.
+>
+> **Gemini account support:** the gemini CLI now rejects some accounts (seen as `IneligibleTierError: UNSUPPORTED_CLIENT`). When that happens, planpong reports the CLI's own reason instead of a generic failure. Run `gemini` once by hand to see whether your account is accepted.
 
 Verify your CLI works:
 
@@ -102,17 +104,24 @@ Optional. Run `planpong init` to generate this interactively, or create `planpon
 planner:
   provider: claude # claude, codex, or gemini
   model: opus # provider-specific; aliases or full IDs both work
+  effort: high # claude: low | medium | high | xhigh | max
 reviewer:
   provider: codex
-  model: gpt-5.3-codex
-  effort: xhigh # codex-only knob: low | medium | high | xhigh
+  model: gpt-6-astra
+  effort: xhigh # codex: levels vary by model, see `planpong config providers`
 max_rounds: 10
 plans_dir: docs/plans
 revision_mode: full # full or edits
 planner_mode: inline # inline or external (see below)
 ```
 
-> Valid `model` and `effort` values are provider-specific and change as providers ship new versions. Run `planpong config providers` to see the current per-provider lists, or `planpong init` for an interactive picker — don't copy the values above verbatim.
+> Valid `model` and `effort` values are provider-specific and change as providers ship new versions, so don't copy the values above verbatim:
+>
+> - **Leave `model` and `effort` unset** to follow each CLI's own configured default (for codex, `~/.codex/config.toml`). This is the setting that never goes stale.
+> - **codex:** planpong reads the current model list and each model's effort levels from `codex debug models`, falling back to a built-in list if that fails. `ultra` works but lets the reviewer delegate to sub-agents, so it costs more time; planpong warns when you set it.
+> - **claude:** use the aliases (`fable`, `opus`, `sonnet`, `haiku`), which always point at the latest model. `effort` is passed as `claude --effort`.
+>
+> Run `planpong config providers` to see the current lists, or `planpong init` for an interactive picker.
 
 All fields are optional. Defaults: claude (planner) + codex (reviewer), 10 rounds, `docs/plans/` directory, `planner_mode: inline`, `revision_mode: full`, `human_in_loop: true`.
 
@@ -132,7 +141,9 @@ Use `full` for new plans where most rounds will rewrite large sections. Switch t
 - **`inline` (default)** — when you're driving planpong from Claude Code, *you* are the planner. Planpong returns the reviewer's issues; Claude reads the plan, edits it directly, and reports its accept/reject/defer decisions back via `planpong_record_revision`. No second model is invoked, so revisions are fast and use the conversational context Claude already has.
 - **`external`** — planpong shells out to the configured planner provider (e.g. another `claude -p` or `codex exec` invocation) to produce the revision. Use this when running planpong outside Claude Code (CLI flow), or when you want a different model to plan than the one orchestrating.
 
-Inline is the right default for the Claude-Code-as-orchestrator workflow; external is the right default for `planpong review` from a plain shell.
+Inline is the right default for the Claude-Code-as-orchestrator workflow; external is the right default for `planpong review` from a plain shell. The CLI commands (`planpong review`, `planpong plan`) always run in external mode.
+
+In inline mode the plan's status line names the MCP client that did the revising (for example `inline(claude-code) → codex(gpt-6-astra)`), not the configured planner, since the configured planner never runs.
 
 ### Viewing and changing config
 
@@ -143,13 +154,15 @@ planpong config keys         # list all keys with valid values, types, and defau
 planpong config providers    # list per-provider model and effort values
 planpong config get <key>    # print a single resolved value
 planpong config set <key> <value>   # set a config value
+planpong config unset <key>         # remove a value (model/effort: follow the CLI's default)
 ```
 
 Examples:
 
 ```sh
-planpong config set reviewer.provider gemini
-planpong config set reviewer.model gemini-2.5-pro
+planpong config set reviewer.provider codex
+planpong config set reviewer.effort high
+planpong config unset reviewer.model
 planpong config set max_rounds 5
 planpong config set planner_mode inline
 ```
