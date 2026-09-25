@@ -4,7 +4,13 @@ import {
   buildArgs,
   extractResponse,
   classifyError,
+  describeKnownGeminiError,
+  interpretGeminiResult,
 } from "./gemini.js";
+import { readFileSync } from "node:fs";
+
+const fixture = (name: string) =>
+  readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), "utf-8");
 
 describe("buildArgs", () => {
   it("emits -p with empty string, --skip-trust, and --output-format json by default", () => {
@@ -153,5 +159,49 @@ describe("GeminiProvider", () => {
     ).rejects.toThrow(
       "gemini provider: newSessionId and resumeSessionId are mutually exclusive",
     );
+  });
+});
+
+describe("describeKnownGeminiError", () => {
+  it("names the rejection and quotes the provider reason verbatim", () => {
+    const msg = describeKnownGeminiError(fixture("gemini-ineligible.stderr.txt"));
+    expect(msg).toContain("IneligibleTierError: UNSUPPORTED_CLIENT");
+    expect(msg).toContain(
+      "Provider reason: This client is no longer supported for Gemini Code Assist for individuals.",
+    );
+    expect(msg).toContain("set reviewer.provider to claude or codex");
+  });
+
+  it("returns null for unrelated errors", () => {
+    expect(describeKnownGeminiError("some other failure")).toBeNull();
+  });
+});
+
+describe("interpretGeminiResult", () => {
+  it("captured tier rejection: fatal with the provider reason, not the envelope-parse message", () => {
+    const r = interpretGeminiResult({
+      stdout: fixture("gemini-ineligible.stdout.txt"),
+      stderr: fixture("gemini-ineligible.stderr.txt"),
+      exitCode: 1,
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.kind).toBe("fatal");
+    expect(r.error.message).toContain("UNSUPPORTED_CLIENT");
+    expect(r.error.message).not.toContain("could not parse gemini JSON envelope");
+  });
+
+  it("envelope error message is used as evidence", () => {
+    const stdout = JSON.stringify({ session_id: "s", error: { type: "x", message: "quota exceeded", code: 429 } });
+    const r = interpretGeminiResult({ stdout, stderr: "", exitCode: 1 });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.message).toContain("quota exceeded");
+    expect(r.error.exitCode).toBe(429);
+  });
+
+  it("successful envelope returns the response", () => {
+    const stdout = JSON.stringify({ session_id: "s", response: "hi" });
+    expect(interpretGeminiResult({ stdout, stderr: "", exitCode: 0 })).toEqual({ ok: true, output: "hi" });
   });
 });

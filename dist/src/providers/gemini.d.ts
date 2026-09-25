@@ -1,4 +1,4 @@
-import type { Provider, InvokeOptions, ProviderResponse, ProviderError } from "./types.js";
+import type { ModelCatalog, Provider, InvokeOptions, ProviderResponse, ProviderError } from "./types.js";
 /**
  * Build argv for `gemini -p`. Pure function — no I/O.
  *
@@ -41,7 +41,33 @@ export declare function extractResponse(stdout: string): ExtractResult;
  * doesn't accept any structured-output flags so there is no capability axis
  * to downgrade along.
  */
-export declare function classifyError(stderr: string, exitCode: number): ProviderError;
+export declare function classifyError(evidence: string, exitCode: number, overrides?: {
+    message?: string;
+    stderr?: string;
+}): ProviderError;
+/**
+ * Known gemini failures that deserve a specific message. States only what
+ * the CLI reported: we have seen one account rejected, not a documented
+ * policy, so no claims about which account tiers work.
+ */
+export declare function describeKnownGeminiError(evidence: string): string | null;
+export type GeminiResult = {
+    ok: true;
+    output: string;
+} | {
+    ok: false;
+    error: ProviderError;
+};
+/**
+ * Pure interpretation of one `gemini -p` run. Gemini can print unrelated
+ * notices on stdout (e.g. "MCP issues detected") while the real failure is
+ * on stderr, so evidence always combines both streams.
+ */
+export declare function interpretGeminiResult(run: {
+    stdout: string | undefined;
+    stderr: string | undefined;
+    exitCode: number;
+}): GeminiResult;
 export declare class GeminiProvider implements Provider {
     name: string;
     invoke(prompt: string, options: InvokeOptions): Promise<ProviderResponse>;
@@ -55,4 +81,6 @@ export declare class GeminiProvider implements Provider {
     markNonCapable(): void;
     getModels(): string[];
     getEffortLevels(): string[];
+    /** Static: gemini has no model listing command and no effort flag. */
+    getModelCatalog(): Promise<ModelCatalog>;
 }

@@ -12,6 +12,7 @@ import { join } from "node:path";
 import {
   setConfigValue,
   setConfigValuesBatch,
+  unsetConfigValue,
   isValidKey,
   getValidKeys,
 } from "./mutate.js";
@@ -472,5 +473,65 @@ describe("setConfigValuesBatch", () => {
     const written = readFileSync(join(tmpDir, "planpong.yaml"), "utf-8");
     expect(written).toContain("provider: claude");
     expect(written).toContain("max_rounds: 4");
+  });
+});
+
+describe("unset", () => {
+  let tmpDir: string;
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "planpong-unset-test-"));
+  });
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("config unset reviewer.model removes only that key", () => {
+    const file = join(tmpDir, "planpong.yaml");
+    writeFileSync(file, "reviewer:\n  provider: codex\n  model: gpt-6-sol\n  effort: high\nmax_rounds: 5\n");
+    const r = unsetConfigValue(tmpDir, "reviewer.model");
+    expect(r.before).toBe("gpt-6-sol");
+    expect(r.after).toBeUndefined();
+    const written = readFileSync(file, "utf-8");
+    expect(written).toContain("provider: codex");
+    expect(written).toContain("effort: high");
+    expect(written).toContain("max_rounds: 5");
+    expect(written).not.toContain("model:");
+  });
+
+  it("drops a role map left empty", () => {
+    const file = join(tmpDir, "planpong.yaml");
+    writeFileSync(file, "reviewer:\n  model: gpt-6-sol\nmax_rounds: 5\n");
+    unsetConfigValue(tmpDir, "reviewer.model");
+    expect(readFileSync(file, "utf-8").trim()).toBe("max_rounds: 5");
+  });
+
+  it("unsetting a key that isn't set is a no-op that doesn't rewrite the file", () => {
+    const file = join(tmpDir, "planpong.yaml");
+    const original = "# keep this comment\nmax_rounds:   5\n";
+    writeFileSync(file, original);
+    const r = unsetConfigValue(tmpDir, "reviewer.model");
+    expect(r.before).toBeUndefined();
+    expect(readFileSync(file, "utf-8")).toBe(original);
+  });
+
+  it("does not create a config file when there is nothing to unset", () => {
+    const r = unsetConfigValue(tmpDir, "reviewer.model");
+    expect(r.before).toBeUndefined();
+    expect(existsSync(join(tmpDir, "planpong.yaml"))).toBe(false);
+  });
+
+  it("unsetting a provider validates against its default", () => {
+    const file = join(tmpDir, "planpong.yaml");
+    writeFileSync(file, "planner:\n  provider: gemini\n");
+    unsetConfigValue(tmpDir, "planner.provider");
+    expect(readFileSync(file, "utf-8")).not.toContain("gemini");
+  });
+
+  it("writes to an explicit configPath instead of re-resolving", () => {
+    const other = join(tmpDir, "elsewhere.yaml");
+    writeFileSync(other, "max_rounds: 5\n");
+    setConfigValuesBatch(tmpDir, [{ key: "max_rounds", rawValue: "9" }], { configPath: other });
+    expect(readFileSync(other, "utf-8")).toContain("max_rounds: 9");
+    expect(existsSync(join(tmpDir, "planpong.yaml"))).toBe(false);
   });
 });

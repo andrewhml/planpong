@@ -35,6 +35,10 @@ export const SessionSchema = z.object({
   // uses a raw `as Session` cast, so runtime normalization in core/session.ts
   // is the authoritative compatibility mechanism.
   plannerMode: z.enum(["inline", "external"]).default("external"),
+  // Name of the MCP client acting as the inline planner (from the MCP
+  // initialize handshake), used for the status line label. Optional so
+  // sessions written before it existed still parse.
+  inlineClient: z.string().optional(),
 });
 
 export type Session = z.infer<typeof SessionSchema>;

@@ -1,6 +1,57 @@
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions, logClassificationFailure, } from "./shared.js";
-const MODELS = ["opus", "sonnet", "haiku"];
+import { assertMutuallyExclusiveSessions, buildCatalog, logClassificationFailure, summarizeStderr, } from "./shared.js";
+// Aliases resolve to the latest model on the CLI side, so this list stays
+// current without discovery (claude has no command that lists models).
+const MODELS = ["fable", "opus", "sonnet", "haiku"];
+const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
+/** Pure parse of `claude --help` output. */
+export function parseClaudeHelp(helpText) {
+    const supportsEffort = /--effort\b/.test(helpText);
+    let advertisedEfforts = null;
+    if (supportsEffort) {
+        // The option's description can wrap; stop at the next option line.
+        const block = helpText.split(/--effort\b/)[1]?.split(/\n\s{2}-/)[0] ?? "";
+        const listed = block.match(/\(([^)]+)\)/)?.[1];
+        if (listed)
+            advertisedEfforts = listed.split(",").map((v) => v.trim()).filter(Boolean);
+    }
+    return {
+        supportsJsonSchema: helpText.includes("--json-schema"),
+        supportsEffort,
+        advertisedEfforts,
+    };
+}
+/**
+ * Decide whether to pass `--effort`. The flag is dropped (with a warning)
+ * rather than sent when we know it won't take effect: claude ignores
+ * unknown values silently apart from a stderr line, and older CLIs reject
+ * the flag outright, which classifyError would misread as a structured
+ * output capability gap.
+ */
+export function resolveEffortArgs(effort, help) {
+    if (!effort || effort === "default")
+        return { args: [] };
+    if (!help.supportsEffort) {
+        return {
+            args: [],
+            warning: `claude CLI does not support --effort; ignoring effort=${effort}. Upgrade claude to enable.`,
+        };
+    }
+    if (help.advertisedEfforts && !help.advertisedEfforts.includes(effort)) {
+        return {
+            args: [],
+            warning: `claude does not accept effort=${effort}; ignoring it. Valid values: ${help.advertisedEfforts.join(", ")}.`,
+        };
+    }
+    return { args: ["--effort", effort] };
+}
+const emittedWarnings = new Set();
+function warnOnce(message) {
+    if (emittedWarnings.has(message))
+        return;
+    emittedWarnings.add(message);
+    process.stderr.write(`[planpong] ${message}\n`);
+}
 /**
  * Build a clean env object with CLAUDECODE removed.
  * This allows spawning headless `claude -p` from inside a Claude Code session.
@@ -49,8 +100,79 @@ export function extractStructuredOutput(stdout) {
  * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
  * requested structured output flag; fatal errors are everything else.
  */
-export function classifyError(stderr, exitCode) {
-    const lower = stderr.toLowerCase();
+/**
+ * If stdout is an error envelope, return its evidence text. Claude reports
+ * API failures (unknown model, auth, rate limit) as `is_error: true`, often
+ * with `subtype: "success"`, so both fields are checked.
+ */
+export function extractEnvelopeError(stdout) {
+    let envelope;
+    try {
+        envelope = JSON.parse(stdout);
+    }
+    catch {
+        return null;
+    }
+    if (!envelope || typeof envelope !== "object")
+        return null;
+    const subtype = typeof envelope.subtype === "string" ? envelope.subtype : "";
+    if (envelope.is_error !== true && !subtype.startsWith("error"))
+        return null;
+    const parts = [
+        typeof envelope.result === "string" ? envelope.result : null,
+        envelope.error != null ? JSON.stringify(envelope.error) : null,
+        envelope.errors != null ? JSON.stringify(envelope.errors) : null,
+        typeof envelope.api_error_status === "number"
+            ? `api_error_status ${envelope.api_error_status}`
+            : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join("\n") : `claude reported an error (${subtype || "is_error"})`;
+}
+const ENVELOPE_CAPABILITY_PATTERN = /invalid (?:json )?schema|json-schema|structured output (?:is )?not supported/i;
+/**
+ * Pure interpretation of one structured-output (`--output-format json`)
+ * run. An error envelope is classified from its own text; only a
+ * successful envelope that lacks `structured_output` is a capability
+ * failure.
+ */
+export function interpretStructuredResult(run) {
+    const stderr = run.stderr ?? "";
+    const envelopeError = extractEnvelopeError(run.stdout);
+    if (envelopeError !== null) {
+        // An envelope means the CLI already accepted every flag, so flag-level
+        // indicators ("unrecognized", "unknown option") can't mean a capability
+        // gap here. Real stderr for a bad model is `[claude-code:unrecognized_model]`,
+        // which the general classifier would misread. Only schema wording counts.
+        const evidence = `${envelopeError}\n${stderr}`;
+        const isSchemaProblem = ENVELOPE_CAPABILITY_PATTERN.test(evidence);
+        return {
+            ok: false,
+            error: {
+                kind: isSchemaProblem ? "capability" : "fatal",
+                // Envelope fields are already clean text; keep all of them (the
+                // result sentence plus status) rather than picking one line.
+                message: envelopeError.replace(/\n/g, "; ").slice(0, 800),
+                exitCode: run.exitCode,
+                stderr,
+            },
+        };
+    }
+    const extracted = extractStructuredOutput(run.stdout);
+    if (extracted === null) {
+        return {
+            ok: false,
+            error: {
+                kind: "capability",
+                message: `claude returned envelope without structured_output field: ${run.stdout.slice(0, 300)}`,
+                exitCode: run.exitCode,
+                stderr,
+            },
+        };
+    }
+    return { ok: true, output: extracted };
+}
+export function classifyError(evidence, exitCode, overrides = {}) {
+    const lower = evidence.toLowerCase();
     const capabilityIndicators = [
         "unknown flag",
         "unknown option",
@@ -63,14 +185,32 @@ export function classifyError(stderr, exitCode) {
     const isCapability = capabilityIndicators.some((indicator) => lower.includes(indicator));
     return {
         kind: isCapability ? "capability" : "fatal",
-        message: stderr.slice(0, 500) || `claude exited with code ${exitCode}`,
+        message: overrides.message ||
+            summarizeStderr(evidence) ||
+            `claude exited with code ${exitCode}`,
         exitCode,
-        stderr,
+        stderr: overrides.stderr ?? evidence,
     };
 }
 export class ClaudeProvider {
     name = "claude";
     capabilityCache = null;
+    helpCache = null;
+    /** Run `claude --help` once per instance; shared by all capability checks. */
+    probeHelp() {
+        if (!this.helpCache) {
+            this.helpCache = execa("claude", ["--help"], {
+                preferLocal: true,
+                timeout: 5_000,
+                reject: false,
+                env: cleanEnv(),
+                extendEnv: false,
+            })
+                .then((r) => parseClaudeHelp(`${r.stdout ?? ""}\n${r.stderr ?? ""}`))
+                .catch(() => parseClaudeHelp(""));
+        }
+        return this.helpCache;
+    }
     async invoke(prompt, options) {
         assertMutuallyExclusiveSessions(this.name, options);
         // claude -p reads prompt from stdin when no positional arg is given.
@@ -93,6 +233,12 @@ export class ClaudeProvider {
         }
         if (options.model) {
             args.push("--model", options.model);
+        }
+        if (options.effort && options.effort !== "default") {
+            const effort = resolveEffortArgs(options.effort, await this.probeHelp());
+            if (effort.warning)
+                warnOnce(effort.warning);
+            args.push(...effort.args);
         }
         // Persistent conversation. `--session-id` creates a new session with the
         // given UUID; `--resume` continues an existing one. Mutual exclusion is
@@ -123,23 +269,21 @@ export class ClaudeProvider {
             // Canonical session ID for the response: echoes the input UUID
             // (claude accepts external UUIDs as session IDs, so input == output).
             const sessionId = options.newSessionId ?? options.resumeSessionId;
+            const effortWarning = result.stderr?.match(/Unknown --effort value[^\n]*/)?.[0];
+            if (effortWarning)
+                warnOnce(`claude: ${effortWarning}`);
             if (result.stdout && result.stdout.trim().length > 0) {
                 if (options.jsonSchema) {
-                    // Parse claude's envelope and extract structured_output.
-                    const extracted = extractStructuredOutput(result.stdout);
-                    if (extracted === null) {
-                        return {
-                            ok: false,
-                            error: {
-                                kind: "capability",
-                                message: `claude returned envelope without structured_output field: ${result.stdout.slice(0, 300)}`,
-                                exitCode,
-                                stderr: result.stderr,
-                            },
-                            duration,
-                        };
+                    const interpreted = interpretStructuredResult({
+                        stdout: result.stdout,
+                        stderr: result.stderr,
+                        exitCode,
+                    });
+                    if (interpreted.ok) {
+                        return { ok: true, output: interpreted.output, duration, sessionId };
                     }
-                    return { ok: true, output: extracted, duration, sessionId };
+                    logClassificationFailure(this.name, exitCode, interpreted.error.message);
+                    return { ok: false, error: interpreted.error, duration };
                 }
                 return { ok: true, output: result.stdout, duration, sessionId };
             }
@@ -181,15 +325,7 @@ export class ClaudeProvider {
             return this.capabilityCache;
         }
         try {
-            const result = await execa("claude", ["--help"], {
-                preferLocal: true,
-                timeout: 5_000,
-                reject: false,
-                env: cleanEnv(),
-                extendEnv: false,
-            });
-            const helpText = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
-            const supported = helpText.includes("--json-schema");
+            const supported = (await this.probeHelp()).supportsJsonSchema;
             this.capabilityCache = supported;
             if (!supported) {
                 process.stderr.write(`[planpong] Structured output not supported by claude — using prompted parsing\n`);
@@ -208,8 +344,10 @@ export class ClaudeProvider {
         return MODELS;
     }
     getEffortLevels() {
-        // Claude effort maps to model selection — opus is highest reasoning
-        return ["default"];
+        return EFFORT_LEVELS;
+    }
+    async getModelCatalog() {
+        return buildCatalog("static", MODELS.map((id) => ({ id, efforts: EFFORT_LEVELS })));
     }
 }
 //# sourceMappingURL=claude.js.map

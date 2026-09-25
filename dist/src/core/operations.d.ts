@@ -55,6 +55,13 @@ export declare function formatTrajectory(trajectory: RoundSeverity[]): string;
 export declare function severityFromFeedback(feedback: PhaseFeedback): RoundSeverity;
 export declare function formatTallies(accepted: number, rejected: number, deferred: number): string;
 export declare function formatDuration(ms: number): string;
+/**
+ * Label for the planner side of the status line. In inline mode the
+ * calling agent revises the plan and the configured planner never runs, so
+ * the label names the MCP client instead (the protocol does not expose the
+ * client's model). Falls back to plain `inline` when the client is unknown.
+ */
+export declare function formatPlannerLabel(planner: ProviderConfig, plannerMode: "inline" | "external" | undefined, inlineClient?: string): string;
 export declare function formatProviderLabel(provider: ProviderConfig): string;
 export interface SessionStats {
     issueTrajectory: RoundSeverity[];
@@ -77,7 +84,9 @@ export declare function updatePlanStatusLine(planContent: string, statusLine: st
  * Validates the file exists, creates a session directory, and writes
  * an initial status line to the plan.
  */
-export declare function initReviewSession(planPath: string, cwd: string, config: PlanpongConfig): SessionInit;
+export declare function initReviewSession(planPath: string, cwd: string, config: PlanpongConfig, opts?: {
+    inlineClient?: string;
+}): SessionInit;
 /**
  * Run a single review round: send current plan to the reviewer for critique.
  */

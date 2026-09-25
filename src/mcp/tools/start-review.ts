@@ -151,7 +151,12 @@ export function registerStartReview(server: McpServer): void {
         };
       }
 
-      const { session, planContent } = initReviewSession(planPath, cwd, config);
+      // The client that called start_review is the one that will revise in
+      // inline mode; record its name for the status line.
+      const inlineClient = server.server.getClientVersion()?.name;
+      const { session, planContent } = initReviewSession(planPath, cwd, config, {
+        inlineClient,
+      });
       const planSummary = planContent.split("\n").slice(0, 20).join("\n");
 
       return {

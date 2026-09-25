@@ -1,8 +1,9 @@
-import { readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { parseDocument } from "yaml";
 import { ZodError } from "zod";
 import { PlanpongConfigSchema } from "../schemas/config.js";
+import { DEFAULT_CONFIG } from "./defaults.js";
 import { findConfigPath } from "./loader.js";
 import { loadConfig } from "./loader.js";
 
@@ -45,10 +46,10 @@ export interface SetConfigResult {
   created: boolean;
 }
 
-export interface BatchPick {
-  key: string;
-  rawValue: string;
-}
+/** Set a key to a value, or remove it so the default (or CLI default) applies. */
+export type BatchPick =
+  | { key: string; rawValue: string; unset?: never }
+  | { key: string; unset: true; rawValue?: never };
 
 export interface BatchPickResult {
   key: string;
@@ -114,7 +115,14 @@ function getNestedValue(obj: Record<string, unknown>, key: string): unknown {
 export function setConfigValuesBatch(
   cwd: string,
   picks: BatchPick[],
-  opts?: { dryRun?: boolean },
+  opts?: {
+    dryRun?: boolean;
+    /**
+     * Write to this file instead of re-resolving. The wizard passes the
+     * path it read its snapshot from so both target the same file.
+     */
+    configPath?: string;
+  },
 ): SetConfigValuesBatchResult {
   for (const p of picks) {
     if (!isValidKey(p.key)) {
@@ -124,11 +132,17 @@ export function setConfigValuesBatch(
     }
   }
 
-  const existingPath = findConfigPath(cwd);
-  const configPath = existingPath ?? join(cwd, "planpong.yaml");
+  const existingPath = opts?.configPath
+    ? existsSync(opts.configPath)
+      ? opts.configPath
+      : null
+    : findConfigPath(cwd);
+  const configPath = opts?.configPath ?? existingPath ?? join(cwd, "planpong.yaml");
   const created = !existingPath;
 
-  if (picks.length === 0) {
+  // Nothing to write, or only unsets against a file that doesn't exist:
+  // don't create an empty planpong.yaml.
+  if (picks.length === 0 || (!existingPath && picks.every((p) => p.unset))) {
     return { configPath, created: false, results: [] };
   }
 
@@ -141,13 +155,47 @@ export function setConfigValuesBatch(
     unknown
   >;
   const results: BatchPickResult[] = [];
+  let changed = false;
 
   for (const p of picks) {
-    const value = coerceValue(p.key, p.rawValue);
     const before = getNestedValue(beforeJson, p.key);
-    results.push({ key: p.key, before, after: value });
-
     const parts = p.key.split(".");
+
+    if (p.unset) {
+      results.push({ key: p.key, before, after: undefined });
+      if (before === undefined) continue; // already unset in this file
+      changed = true;
+      doc.deleteIn(parts);
+      // Drop a role map left empty; never touch its other keys.
+      if (parts.length > 1) {
+        const section = doc.getIn([parts[0]]) as { items?: unknown[] } | undefined;
+        if (section && Array.isArray(section.items) && section.items.length === 0) {
+          doc.deleteIn([parts[0]]);
+        }
+      }
+      // Validate against what loading will produce: the built-in default
+      // when one exists, else absent.
+      const fallback = getNestedValue(
+        DEFAULT_CONFIG as unknown as Record<string, unknown>,
+        p.key,
+      );
+      if (parts.length === 1) {
+        if (fallback === undefined) delete testConfig[parts[0]];
+        else testConfig[parts[0]] = fallback;
+      } else {
+        const section = {
+          ...((testConfig[parts[0]] as Record<string, unknown> | undefined) ?? {}),
+        };
+        if (fallback === undefined) delete section[parts[1]];
+        else section[parts[1]] = fallback;
+        testConfig[parts[0]] = section;
+      }
+      continue;
+    }
+
+    const value = coerceValue(p.key, p.rawValue);
+    results.push({ key: p.key, before, after: value });
+    changed = true;
     doc.setIn(parts, value);
     if (parts.length === 1) {
       testConfig[parts[0]] = value;
@@ -171,7 +219,7 @@ export function setConfigValuesBatch(
     throw err;
   }
 
-  if (!opts?.dryRun) {
+  if (!opts?.dryRun && changed) {
     const output = doc.toString();
     const tmpPath = configPath + ".tmp." + process.pid;
     writeFileSync(tmpPath, output, "utf-8");
@@ -179,6 +227,23 @@ export function setConfigValuesBatch(
   }
 
   return { configPath, created, results };
+}
+
+/** Remove one key so its default (or the provider CLI's default) applies. */
+export function unsetConfigValue(
+  cwd: string,
+  key: string,
+  opts?: { dryRun?: boolean },
+): SetConfigResult {
+  const batch = setConfigValuesBatch(cwd, [{ key, unset: true }], opts);
+  const r = batch.results[0] ?? { key, before: undefined, after: undefined };
+  return {
+    configPath: batch.configPath,
+    key: r.key,
+    before: r.before,
+    after: r.after,
+    created: batch.created,
+  };
 }
 
 export function setConfigValue(

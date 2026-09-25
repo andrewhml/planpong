@@ -2,7 +2,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   assertMutuallyExclusiveSessions,
   logClassificationFailure,
+  summarizeStderr,
 } from "./shared.js";
+import { readFileSync } from "node:fs";
+
+const fixture = (name: string) =>
+  readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), "utf-8");
 
 describe("assertMutuallyExclusiveSessions", () => {
   it("throws when both newSessionId and resumeSessionId are set", () => {
@@ -72,17 +77,41 @@ describe("logClassificationFailure", () => {
     expect(spy.mock.calls[0]?.[0]).toMatch(/^\[codex-provider\] /);
   });
 
-  it("truncates stderr to 500 characters", () => {
+  it("logs the summarized error line, not the head of stderr", () => {
     const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-    const long = "x".repeat(800);
-    logClassificationFailure("gemini", 1, long);
+    logClassificationFailure("gemini", 1, "banner line\nError: real cause\n    at frame (x.js:1:1)");
     const written = spy.mock.calls[0]?.[0] as string;
-    expect(written).toBe(`[gemini-provider] exit=1 stderr=${"x".repeat(500)}\n`);
+    expect(written).toBe("[gemini-provider] exit=1 stderr=Error: real cause\n");
   });
 
   it("handles undefined stderr without throwing", () => {
     const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     logClassificationFailure("claude", 1, undefined);
     expect(spy).toHaveBeenCalledWith("[claude-provider] exit=1 stderr=\n");
+  });
+});
+
+describe("summarizeStderr", () => {
+  it("returns the last error-like line, skipping stack frames", () => {
+    const text = "Starting up\nError: first\n    at a (x.js:1:1)\nFatal failure here\n    at b (y.js:2:2)";
+    expect(summarizeStderr(text)).toBe("Fatal failure here");
+  });
+
+  it("strips ANSI color codes", () => {
+    expect(summarizeStderr("\x1b[31mError: red\x1b[0m")).toBe("Error: red");
+  });
+
+  it("falls back to the tail when no line looks like an error", () => {
+    expect(summarizeStderr("one\ntwo\nthree", 9)).toBe("two\nthree");
+  });
+
+  it("returns an empty string for empty input", () => {
+    expect(summarizeStderr("")).toBe("");
+  });
+
+  it("surfaces the real cause from captured gemini stderr", () => {
+    const summary = summarizeStderr(fixture("gemini-ineligible.stderr.txt"));
+    expect(summary).toContain("IneligibleTierError");
+    expect(summary).not.toMatch(/^\s+at /);
   });
 });

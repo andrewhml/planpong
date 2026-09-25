@@ -1,6 +1,6 @@
 # Provider Refresh and CI Test Gate
 
-**Status:** In progress (PR 1: CI gate)
+**Status:** In progress (PR 2: provider refresh)
 **planpong:** R5/10 | claude(claude-opus-4-6/high) → codex(gpt-6-astra/xhigh) | detail | 0 → 2P2 2P3 → 1P1 3P2 1P3 → 2P2 → 0 | Accepted: 11 | +24/-0 lines | 22m 40s | Approved after 5 rounds
 
 ## Context
@@ -58,7 +58,7 @@ Two PRs. The CI gate lands first so the provider changes merge behind it.
 
 ### PR 2: Provider refresh
 
-- [ ] **Step 3: Surface real provider errors (all three providers)**
+- [x] **Step 3: Surface real provider errors (all three providers)**
   - Add `summarizeStderr(stderr: string, max = 800): string` to `src/providers/shared.ts`. Strategy: strip ANSI codes; drop stack-frame lines (`/^\s+at /`); prefer the last line matching `/error|fail|denied|unsupported|invalid|not (found|supported)/i`; otherwise return the tail `max` chars. Pure function, unit-tested with the captured gemini stderr as a fixture.
   - Use it in `classifyError` for claude, codex, gemini and in `logClassificationFailure` (replacing `stderr.slice(0, 500)`). Keep the full `stderr` on `ProviderError.stderr` unchanged.
   - Gemini-specific: in the envelope-parse-failure branch of `GeminiProvider.invoke`, when `extractResponse` fails and stderr is non-empty, the error message becomes `summarizeStderr(stderr)` with the envelope failure appended as context, not the envelope failure alone.
@@ -71,7 +71,7 @@ Two PRs. The CI gate lands first so the provider changes merge behind it.
   - Classification of the invalid-model 400: confirm the codex capability patterns (flag and schema wording only) do not match `invalid_request_error ... model is not supported`, and keep the test from (a).
   - Update this repo's `planpong.yaml`: `reviewer.model` from `gpt-5.3-codex` to a current slug (or remove the pin to follow the codex CLI default), and `planner.model` from `claude-opus-4-6` to the `opus` alias (or remove). Decide with the user in the PR; the dogfood config should not pin dead or aging slugs.
   - Verify the message reaches the MCP client: `operations.ts:628` already formats `response.error.message` into the thrown error, so the fix at the provider layer is sufficient. Add a test in `operations.test.ts` that a gemini provider stub returning this error yields a thrown message containing `UNSUPPORTED_CLIENT`.
-- [ ] **Step 4: Model catalog interface**
+- [x] **Step 4: Model catalog interface**
   - In `src/providers/types.ts`, add:
     ```ts
     export interface ModelInfo { id: string; efforts: string[]; defaultEffort?: string; }
@@ -81,14 +81,14 @@ Two PRs. The CI gate lands first so the provider changes merge behind it.
     Add `allEfforts: string[]` (the union) used only for soft validation on `config set`, so a valid-for-some-model value like `max` doesn't warn as unknown when no model is pinned; the warning instead says `max is not supported by every codex model; pin reviewer.model to one that supports it`.
   - Add `getModelCatalog(): Promise<ModelCatalog>` to `Provider`. Keep `getModels()` and `getEffortLevels()` as the static fallback source (sync), so existing tests and any external consumer keep working; they are no longer called by the CLI surfaces.
   - Cache the catalog per provider instance (same pattern as `capabilityCache`).
-- [ ] **Step 5: Codex live discovery**
+- [x] **Step 5: Codex live discovery**
   - `getModelCatalog()` runs `codex debug models` (5s timeout, `reject: false`), parses stdout with a zod schema that accepts `{ models: [...] }` or a bare array and requires only `slug: string`; `visibility`, `supported_reasoning_levels[].effort`, `default_reasoning_level` optional. Unknown fields are ignored (`.passthrough()` not needed; `.strip()` default).
   - Keep models with `visibility !== "hide"` (missing visibility counts as visible).
   - Any failure (non-zero exit, timeout, JSON or schema error, zero models) returns the static catalog with `note: "codex model discovery failed (<reason>); showing built-in list"`. Never throws.
   - Refresh static `MODELS` to the current list-visible slugs and `EFFORT_LEVELS` to `["low", "medium", "high", "xhigh", "max"]`.
   - `ultra` handling: it is kept in the catalog (so `config set reviewer.effort ultra` does not warn as unknown) but excluded from wizard choices, and `config set` prints an advisory: `ultra enables automatic task delegation; the reviewer may spawn sub-agents, increasing time and cost.` Implemented as a small `EFFORT_ADVISORIES` map in `codex.ts`, surfaced by `config.ts`.
   - Unit tests: parse the real catalog shape (fixture captured from `codex debug models`, trimmed), bare-array shape, hidden filtering, malformed JSON fallback, non-zero exit fallback.
-- [ ] **Step 6: Claude effort + models**
+- [x] **Step 6: Claude effort + models**
   - `MODELS = ["fable", "opus", "sonnet", "haiku"]` (aliases resolve to latest on the CLI side; no discovery command exists). `getModelCatalog()` returns this statically with efforts `["low", "medium", "high", "xhigh", "max"]`, `source: "static"`.
   - `invoke()`: when `options.effort` is set and not `"default"`, push `--effort <level>`, gated on a help probe. Extend the existing `--help` probe in `checkStructuredOutputSupport` into a shared `probeHelp()` that caches the help text once and answers both `--json-schema` and `--effort`. If `--effort` is unsupported, omit the flag and write one stderr warning per process: `[planpong] claude CLI does not support --effort; ignoring effort=<level>. Upgrade claude to enable.`
   - Why a probe and not error classification: an unknown-flag failure is classified `capability` (`claude.ts` `classifyError`), which the state machine treats as "structured output unsupported" and downgrades to prompted mode with the same bad flag, failing twice and poisoning the structured-output cache. The probe avoids that misclassification.
@@ -99,7 +99,7 @@ Two PRs. The CI gate lands first so the provider changes merge behind it.
     - Older CLIs without `--effort` are covered by the help probe (flag omitted + warning). The implementer checks one pinned older claude version (`npx @anthropic-ai/claude-code@<version from before effort shipped> --help`) to confirm the probe reads absence correctly, and records the version used in the PR.
   - `getEffortLevels()` returns the new list (so existing callers and soft validation match).
   - Tests: args include `--effort high` when set; omitted for `"default"` and unset; omitted with warning when probe says unsupported; omitted with warning when the value is not advertised; probe runs once for both checks.
-- [ ] **Step 7: Wire CLI surfaces to the catalog**
+- [x] **Step 7: Wire CLI surfaces to the catalog**
   - `init.ts`: before building choices, `await provider.getModelCatalog()` for planner and reviewer. Model choices from `catalog.models`; effort choices from the selected model's `efforts` if a model was chosen, else `catalog.efforts` (the intersection) with a hint: `pin a model to see its full effort range`; filter out advisory-flagged efforts (`ultra`). If `catalog.note` is set, print it once above the prompt.
   - **Add a "CLI default" choice; it does not exist today.** `init.ts` model and effort selects offer only enumerated values, `WizardAnswers` requires model strings, `answersToPicks` stringifies with `String(answer)` (an `undefined` becomes the literal `"undefined"`), and `setConfigValuesBatch` in `mutate.ts` can only set keys. Changes:
     - Model select gets a first choice `CLI default (follow <provider>'s own configured model)`; effort select gets `CLI default`. Their values are a module-private sentinel symbol, never a string, so it cannot collide with a model name or be serialized.
@@ -117,7 +117,7 @@ Two PRs. The CI gate lands first so the provider changes merge behind it.
   - `config.ts` `printProvidersTable`: show `source` per provider (`live` / `built-in`), per-model effort lists for live catalogs, and the `note` when present.
   - Gemini: `getModelCatalog()` wraps its static lists (`source: "static"`), no discovery.
   - Update tests in `init.test.ts`, `config.test.ts`, `mutate.test.ts` fixtures. Per memory, tsconfig excludes tests, so run `npm test`, not only typecheck, after the interface change.
-- [ ] **Step 8: Inline planner label (#54)**
+- [x] **Step 8: Inline planner label (#54)**
   - Add `formatPlannerLabel(config, plannerMode, inlineClient?: string)`: returns `formatProviderLabel(config.planner)` for `external`; for `inline` returns `inline` or `inline(<client>)`.
   - `inlineClient` comes from the MCP client's `initialize` handshake: `server.server.getClientVersion()?.name` in `src/mcp/server.ts` (e.g. `claude-code`, a codex client name). Capture it once at connection and thread it into `initReviewSession` via a new optional field on the start-review input path, then persist it on the session (`session.inlineClient?: string`, optional in the zod schema so older session files still parse) so later `buildStatusLine` calls read it from the session, not from process state.
   - Use it in `buildStatusLine` (`operations.ts:295`) and `initReviewSession` (`operations.ts:403`).
@@ -127,7 +127,7 @@ Two PRs. The CI gate lands first so the provider changes merge behind it.
 
 ### Release
 
-- [ ] Docs gate (per project convention, docs are release-blocking): README provider section (claude effort now honored; gemini: state that some accounts are now rejected by the gemini CLI and planpong surfaces the provider's reason, without asserting which tiers work; `config providers` shows live codex models), `planpong config --help` / `config providers` help text, and the MCP server instructions if they mention models.
+- [x] Docs gate (per project convention, docs are release-blocking): README provider section (claude effort now honored; gemini: state that some accounts are now rejected by the gemini CLI and planpong surfaces the provider's reason, without asserting which tiers work; `config providers` shows live codex models), `planpong config --help` / `config providers` help text, and the MCP server instructions if they mention models.
 - [ ] `npm version minor` → 0.7.0, push with tags.
 
 ## Risks and mitigations

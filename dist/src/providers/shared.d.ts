@@ -1,4 +1,4 @@
-import type { InvokeOptions } from "./types.js";
+import type { InvokeOptions, ModelCatalog, ModelInfo } from "./types.js";
 /**
  * Reject the impossible state where a caller asks the provider to both
  * initialize a fresh session AND resume an existing one. The operations-layer
@@ -7,6 +7,14 @@ import type { InvokeOptions } from "./types.js";
  */
 export declare function assertMutuallyExclusiveSessions(providerName: string, options: InvokeOptions): void;
 /**
+ * Reduce CLI error output to the line a human needs. CLIs print banners and
+ * warnings first and stack traces last, so the head of stderr (what we used
+ * to keep) is usually noise. Strategy: strip ANSI codes and stack frames,
+ * return the last line that reads like an error, else the tail. The full
+ * text stays on `ProviderError.stderr` for debugging.
+ */
+export declare function summarizeStderr(text: string, max?: number): string;
+/**
  * Emit a single-line debug breadcrumb when a provider invocation produces no
  * usable output and is about to be classified as a failure. Matches the
  * `[<provider>-provider] exit=<code> stderr=<truncated>` format originally
@@ -14,3 +22,13 @@ export declare function assertMutuallyExclusiveSessions(providerName: string, op
  * which CLI failed.
  */
 export declare function logClassificationFailure(providerName: string, exitCode: number, stderr: string | undefined): void;
+/**
+ * Build a catalog from per-model effort lists. `efforts` is the
+ * intersection across models that report efforts (safe for whichever model
+ * the CLI picks by default); `allEfforts` is the union. Order follows the
+ * first model that lists each level.
+ */
+export declare function buildCatalog(source: ModelCatalog["source"], models: ModelInfo[], options?: {
+    advisories?: Record<string, string>;
+    note?: string;
+}): ModelCatalog;

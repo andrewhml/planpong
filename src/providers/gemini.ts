@@ -1,9 +1,12 @@
 import { execa } from "execa";
 import {
   assertMutuallyExclusiveSessions,
+  buildCatalog,
   logClassificationFailure,
+  summarizeStderr,
 } from "./shared.js";
 import type {
+  ModelCatalog,
   Provider,
   InvokeOptions,
   ProviderResponse,
@@ -96,13 +99,78 @@ export function extractResponse(stdout: string): ExtractResult {
  * doesn't accept any structured-output flags so there is no capability axis
  * to downgrade along.
  */
-export function classifyError(stderr: string, exitCode: number): ProviderError {
+export function classifyError(
+  evidence: string,
+  exitCode: number,
+  overrides: { message?: string; stderr?: string } = {},
+): ProviderError {
   return {
     kind: "fatal",
-    message: stderr.slice(0, 500) || `gemini exited with code ${exitCode}`,
+    message:
+      overrides.message ||
+      summarizeStderr(evidence) ||
+      `gemini exited with code ${exitCode}`,
     exitCode,
-    stderr,
+    stderr: overrides.stderr ?? evidence,
   };
+}
+
+/**
+ * Known gemini failures that deserve a specific message. States only what
+ * the CLI reported: we have seen one account rejected, not a documented
+ * policy, so no claims about which account tiers work.
+ */
+export function describeKnownGeminiError(evidence: string): string | null {
+  if (!/IneligibleTierError|UNSUPPORTED_CLIENT/.test(evidence)) return null;
+  const reason =
+    evidence.match(/reasonMessage:\s*'([^']+)'/)?.[1] ??
+    evidence.match(/IneligibleTierError:\s*(.+)/)?.[1]?.trim();
+  const code = evidence.match(/reasonCode:\s*'([^']+)'/)?.[1] ?? "UNSUPPORTED_CLIENT";
+  return (
+    `gemini CLI rejected this account (IneligibleTierError: ${code}).` +
+    (reason ? ` Provider reason: ${reason}` : "") +
+    ` To keep reviewing now, set reviewer.provider to claude or codex.`
+  );
+}
+
+export type GeminiResult =
+  | { ok: true; output: string }
+  | { ok: false; error: ProviderError };
+
+/**
+ * Pure interpretation of one `gemini -p` run. Gemini can print unrelated
+ * notices on stdout (e.g. "MCP issues detected") while the real failure is
+ * on stderr, so evidence always combines both streams.
+ */
+export function interpretGeminiResult(run: {
+  stdout: string | undefined;
+  stderr: string | undefined;
+  exitCode: number;
+}): GeminiResult {
+  const stdout = run.stdout ?? "";
+  const stderr = run.stderr ?? "";
+  let stdoutEvidence = "";
+  let exitCode = run.exitCode;
+  if (stdout.trim().length > 0) {
+    const parsed = extractResponse(stdout);
+    if (parsed.ok) return { ok: true, output: parsed.text };
+    exitCode = parsed.code ?? run.exitCode;
+    // A real envelope error carries its own message; otherwise stdout was
+    // not an envelope and its raw text is the evidence.
+    stdoutEvidence =
+      parsed.message === "could not parse gemini JSON envelope"
+        ? stdout
+        : parsed.message;
+  }
+  const evidence = [stdoutEvidence, stderr].filter(Boolean).join("\n");
+  const known = describeKnownGeminiError(evidence);
+  const message =
+    known ??
+    ([summarizeStderr(stderr), stdoutEvidence && summarizeStderr(stdoutEvidence)]
+      .filter(Boolean)
+      .join("\n") ||
+      undefined);
+  return { ok: false, error: classifyError(evidence, exitCode, { message, stderr }) };
 }
 
 export class GeminiProvider implements Provider {
@@ -125,32 +193,20 @@ export class GeminiProvider implements Provider {
         input: prompt,
       });
       const duration = Date.now() - start;
-      const exitCode = result.exitCode ?? 1;
-      const stdout = result.stdout ?? "";
-
-      if (stdout.trim().length > 0) {
-        const parsed = extractResponse(stdout);
-        if (parsed.ok) {
-          return { ok: true, output: parsed.text, duration };
-        }
-        return {
-          ok: false,
-          error: {
-            kind: "fatal",
-            message: parsed.message,
-            exitCode: parsed.code ?? exitCode,
-            stderr: result.stderr,
-          },
-          duration,
-        };
+      const interpreted = interpretGeminiResult({
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode ?? 1,
+      });
+      if (interpreted.ok) {
+        return { ...interpreted, duration };
       }
-
-      logClassificationFailure(this.name, exitCode, result.stderr);
-      return {
-        ok: false,
-        error: classifyError(result.stderr ?? "", exitCode),
-        duration,
-      };
+      logClassificationFailure(
+        this.name,
+        interpreted.error.exitCode,
+        interpreted.error.message,
+      );
+      return { ok: false, error: interpreted.error, duration };
     } catch (error) {
       const duration = Date.now() - start;
       const message =
@@ -195,5 +251,13 @@ export class GeminiProvider implements Provider {
 
   getEffortLevels(): string[] {
     return ["default"];
+  }
+
+  /** Static: gemini has no model listing command and no effort flag. */
+  async getModelCatalog(): Promise<ModelCatalog> {
+    return buildCatalog(
+      "static",
+      MODELS.map((id) => ({ id, efforts: [] })),
+    );
   }
 }

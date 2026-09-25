@@ -1,52 +1,100 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import { select, input, confirm } from "@inquirer/prompts";
 import chalk from "chalk";
 import { setConfigValuesBatch, } from "../../config/mutate.js";
+import { findConfigPath } from "../../config/loader.js";
+import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { getAllProviders, getInstallHint, } from "../../providers/registry.js";
 /**
- * Map a codex effort level to a human-readable label for the wizard.
+ * Wizard answer meaning "don't pin this; let the provider CLI decide". A
+ * symbol, never a string, so it can't collide with a model name or be
+ * written to disk.
+ */
+export const CLI_DEFAULT = Symbol("cli-default");
+/**
+ * Map an effort level to a human-readable label for the wizard.
  * Falls through to the raw value for unknown levels (future-proofing
  * against new effort tiers).
  */
 export function effortLabel(level) {
     switch (level) {
         case "low":
-            return "low — fastest, cheapest";
+            return "low (fastest, cheapest)";
         case "medium":
             return "medium";
         case "high":
-            return "high — recommended";
+            return "high (recommended)";
         case "xhigh":
-            return "xhigh — slowest, most thorough";
+            return "xhigh (more thorough, slower)";
+        case "max":
+            return "max (most thorough, slowest)";
         default:
             return level;
     }
 }
-const CONFIG_FILENAMES = [
-    "planpong.yaml",
-    "planpong.yml",
-    ".planpong.yaml",
-    ".planpong.yml",
-];
+/**
+ * Model choices for one role. The old model is offered only when the
+ * provider is unchanged: a pinned model outside the catalog stays
+ * selectable (and preselected) so re-running the wizard never silently
+ * drops a pin, while switching provider never carries a model across.
+ */
+export function buildModelChoices(providerName, catalog, providerChanged, diskModel) {
+    const choices = [
+        { name: `CLI default (follow ${providerName}'s own configured model)`, value: CLI_DEFAULT },
+        ...catalog.models.map((m) => ({ name: m.id, value: m.id })),
+    ];
+    if (providerChanged || !diskModel)
+        return { choices, default: CLI_DEFAULT };
+    if (!catalog.models.some((m) => m.id === diskModel)) {
+        choices.push({ name: `${diskModel} (current, not in catalog)`, value: diskModel });
+    }
+    return { choices, default: diskModel };
+}
+/**
+ * Effort choices for one role, or null when the provider has no effort
+ * levels. With a pinned catalog model, offer that model's levels; with CLI
+ * default, only levels every model accepts (the intersection); with an
+ * unknown pinned model, the union. Advisory levels (codex `ultra`) are not
+ * suggested, except a current pin that is kept visible.
+ */
+export function buildEffortChoices(catalog, model, providerChanged, diskEffort) {
+    if (catalog.allEfforts.length === 0)
+        return null;
+    const known = typeof model === "string" ? catalog.models.find((m) => m.id === model) : undefined;
+    const available = model === CLI_DEFAULT ? catalog.efforts : known ? known.efforts : catalog.allEfforts;
+    const suggested = available.filter((e) => !(e in catalog.advisories));
+    const choices = [
+        { name: "CLI default", value: CLI_DEFAULT },
+        ...suggested.map((e) => ({ name: effortLabel(e), value: e })),
+    ];
+    const hint = model === CLI_DEFAULT && catalog.efforts.length < catalog.allEfforts.length
+        ? "pin a model to see its full effort range"
+        : undefined;
+    if (providerChanged || !diskEffort || !available.includes(diskEffort)) {
+        return { choices, default: CLI_DEFAULT, hint };
+    }
+    if (!suggested.includes(diskEffort)) {
+        choices.push({ name: `${diskEffort} (current)`, value: diskEffort });
+    }
+    return { choices, default: diskEffort, hint };
+}
 const GEMINI_REVIEWER_INLINE_WARNING = "warning: gemini reviewer rounds run without persistent session resumption.\n" +
     "         expect noticeably slower per-round wall time than claude/codex.\n" +
     "         tracked: see Future work in docs/plans/gemini-and-init-wizard.md";
 /**
- * Read planpong.yaml directly into a partial snapshot. Unlike loadConfig(),
- * this does NOT merge defaults — fields the user never wrote remain
- * undefined so the wizard can omit them from the batch write.
+ * Read the config file the writer will modify into a partial snapshot.
+ * Resolves with findConfigPath (walks parent directories), the same lookup
+ * setConfigValuesBatch uses, so the wizard's view and its write target are
+ * the same file. Unlike loadConfig(), this does NOT merge defaults: fields
+ * the user never wrote remain undefined so the wizard can omit them.
  */
 export function readDiskSnapshot(cwd) {
-    for (const filename of CONFIG_FILENAMES) {
-        const candidate = join(cwd, filename);
-        if (existsSync(candidate)) {
-            const raw = readFileSync(candidate, "utf-8");
-            return parseYaml(raw) ?? {};
-        }
-    }
-    return {};
+    const path = findConfigPath(cwd);
+    if (!path)
+        return { path: null, snapshot: {} };
+    const raw = readFileSync(path, "utf-8");
+    return { path, snapshot: parseYaml(raw) ?? {} };
 }
 /**
  * Pure formatter for the post-write summary. The auth reminder appears
@@ -73,6 +121,12 @@ export function formatPostWriteSummary(answers) {
 export function answersToPicks(answers, disk) {
     const picks = [];
     const add = (key, answer, diskValue) => {
+        if (answer === CLI_DEFAULT) {
+            // "Let the CLI decide": remove a pin if there is one, else nothing.
+            if (diskValue !== undefined)
+                picks.push({ key, unset: true });
+            return;
+        }
         if (answer === diskValue)
             return;
         picks.push({ key, rawValue: String(answer) });
@@ -139,33 +193,49 @@ async function runWizard(cwd) {
         process.exitCode = 1;
         return;
     }
-    const disk = readDiskSnapshot(cwd);
+    const { path: diskPath, snapshot: disk } = readDiskSnapshot(cwd);
+    console.log(chalk.dim(diskPath ? `Editing ${diskPath}\n` : "No planpong.yaml found; one will be created in this directory.\n"));
     const installedChoices = installed.map((s) => ({
         name: s.provider.name,
         value: s.provider.name,
     }));
+    const printedNotes = new Set();
+    const askRole = async (role, label, providerName) => {
+        const provider = statuses.find((s) => s.provider.name === providerName)?.provider;
+        if (!provider)
+            return { model: CLI_DEFAULT, effort: CLI_DEFAULT };
+        const catalog = await provider.getModelCatalog();
+        if (catalog.note && !printedNotes.has(catalog.note)) {
+            printedNotes.add(catalog.note);
+            console.log(chalk.yellow(`  note: ${catalog.note}`));
+        }
+        const diskRole = disk[role];
+        const providerChanged = providerName !== (diskRole?.provider ?? DEFAULT_CONFIG[role].provider);
+        const modelChoices = buildModelChoices(providerName, catalog, providerChanged, diskRole?.model);
+        const model = await select({
+            message: `${label} model:`,
+            choices: modelChoices.choices,
+            default: modelChoices.default,
+        });
+        const effortChoices = buildEffortChoices(catalog, model, providerChanged, diskRole?.effort);
+        // No effort levels for this provider: clear any stale pin.
+        if (!effortChoices)
+            return { model, effort: CLI_DEFAULT };
+        if (effortChoices.hint)
+            console.log(chalk.dim(`  ${effortChoices.hint}`));
+        const effort = await select({
+            message: `${label} effort level:`,
+            choices: effortChoices.choices,
+            default: effortChoices.default,
+        });
+        return { model, effort };
+    };
     const plannerProvider = await select({
         message: "Planner provider:",
         choices: installedChoices,
         default: disk.planner?.provider ?? installedChoices[0].value,
     });
-    const plannerProviderObj = statuses.find((s) => s.provider.name === plannerProvider)?.provider;
-    const plannerModelChoices = (plannerProviderObj?.getModels() ?? []).map((m) => ({ name: m, value: m }));
-    const plannerModel = await select({
-        message: "Planner model:",
-        choices: plannerModelChoices,
-        default: disk.planner?.model ?? plannerModelChoices[0]?.value,
-    });
-    const plannerEffortLevels = plannerProviderObj?.getEffortLevels() ?? [];
-    let plannerEffort;
-    if (plannerEffortLevels.length > 1) {
-        plannerEffort = await select({
-            message: "Planner effort level:",
-            choices: plannerEffortLevels.map((l) => ({ name: effortLabel(l), value: l })),
-            default: disk.planner?.effort ??
-                plannerEffortLevels[Math.floor(plannerEffortLevels.length / 2)],
-        });
-    }
+    const planner = await askRole("planner", "Planner", plannerProvider);
     const reviewerProvider = await select({
         message: "Reviewer provider:",
         choices: installedChoices,
@@ -174,23 +244,7 @@ async function runWizard(cwd) {
     if (reviewerProvider === plannerProvider) {
         console.log(chalk.yellow("  note: planner and reviewer use the same provider. Adversarial signal is reduced when both roles share a model lineage."));
     }
-    const reviewerProviderObj = statuses.find((s) => s.provider.name === reviewerProvider)?.provider;
-    const reviewerModelChoices = (reviewerProviderObj?.getModels() ?? []).map((m) => ({ name: m, value: m }));
-    const reviewerModel = await select({
-        message: "Reviewer model:",
-        choices: reviewerModelChoices,
-        default: disk.reviewer?.model ?? reviewerModelChoices[0]?.value,
-    });
-    const reviewerEffortLevels = reviewerProviderObj?.getEffortLevels() ?? [];
-    let reviewerEffort;
-    if (reviewerEffortLevels.length > 1) {
-        reviewerEffort = await select({
-            message: "Reviewer effort level:",
-            choices: reviewerEffortLevels.map((l) => ({ name: effortLabel(l), value: l })),
-            default: disk.reviewer?.effort ??
-                reviewerEffortLevels[Math.floor(reviewerEffortLevels.length / 2)],
-        });
-    }
+    const reviewer = await askRole("reviewer", "Reviewer", reviewerProvider);
     const maxRoundsRaw = await input({
         message: "Maximum review rounds:",
         default: String(disk.max_rounds ?? 10),
@@ -234,11 +288,11 @@ async function runWizard(cwd) {
     }
     const answers = {
         plannerProvider,
-        plannerModel,
-        plannerEffort,
+        plannerModel: planner.model,
+        plannerEffort: planner.effort,
         reviewerProvider,
-        reviewerModel,
-        reviewerEffort,
+        reviewerModel: reviewer.model,
+        reviewerEffort: reviewer.effort,
         maxRounds: Number(maxRoundsRaw),
         plansDir,
         plannerMode,
@@ -252,11 +306,12 @@ async function runWizard(cwd) {
     }
     console.log(chalk.bold("\nProposed changes:"));
     for (const p of picks) {
-        console.log(`  ${p.key.padEnd(20)} → ${p.rawValue}`);
+        const after = p.unset ? "(unset, CLI default)" : p.rawValue;
+        console.log(`  ${p.key.padEnd(20)} → ${after}`);
     }
     const proceed = await confirm({
-        message: existsSync(join(cwd, "planpong.yaml"))
-            ? "Update planpong.yaml with these changes?"
+        message: diskPath
+            ? `Update ${diskPath} with these changes?`
             : "Write planpong.yaml in this directory?",
         default: true,
     });
@@ -264,7 +319,7 @@ async function runWizard(cwd) {
         console.log(chalk.dim("Cancelled, no changes written."));
         return;
     }
-    const result = setConfigValuesBatch(cwd, picks);
+    const result = setConfigValuesBatch(cwd, picks, diskPath ? { configPath: diskPath } : undefined);
     console.log(chalk.green(result.created ? "Created" : "Updated"), result.configPath);
     console.log(formatPostWriteSummary(answers));
 }

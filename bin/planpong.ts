@@ -60,6 +60,7 @@ Quick reference:
   planpong config providers    List per-provider model and effort values
   planpong config get <key>    Get a single setting
   planpong config set <key> <value>  Change a setting
+  planpong config unset <key>  Remove a setting (model/effort: use the CLI's default)
 
   planpong review <plan-file>  Start adversarial review of a plan
   planpong plan <requirements> Generate a plan and review it`,
