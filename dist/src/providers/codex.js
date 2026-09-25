@@ -3,7 +3,7 @@ import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
-import { assertMutuallyExclusiveSessions, logClassificationFailure, } from "./shared.js";
+import { assertMutuallyExclusiveSessions, logClassificationFailure, summarizeStderr, } from "./shared.js";
 const MODELS = ["gpt-5.3-codex", "o3-pro", "o3", "o4-mini"];
 const EFFORT_LEVELS = ["low", "medium", "high", "xhigh"];
 /**
@@ -40,8 +40,129 @@ export function extractCodexThreadId(stdout) {
     }
     return undefined;
 }
-export function classifyError(stderr, exitCode) {
-    const lower = stderr.toLowerCase();
+function parseEvents(stdout) {
+    if (!stdout)
+        return [];
+    const events = [];
+    for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("{"))
+            continue;
+        try {
+            const evt = JSON.parse(trimmed);
+            if (evt && typeof evt === "object")
+                events.push(evt);
+        }
+        catch {
+            continue;
+        }
+    }
+    return events;
+}
+/**
+ * Codex wraps API errors as a JSON string inside the event's message, e.g.
+ * `{"type":"error","status":400,"error":{"message":"The 'x' model is not
+ * supported..."}}`. Return the innermost human-readable message.
+ */
+function unwrapCodexMessage(message) {
+    try {
+        const inner = JSON.parse(message);
+        if (inner && typeof inner.error?.message === "string") {
+            const prefix = [inner.status, inner.error.type].filter(Boolean).join(" ");
+            return prefix ? `${prefix}: ${inner.error.message}` : inner.error.message;
+        }
+    }
+    catch {
+        // Not wrapped JSON; use as-is.
+    }
+    return message;
+}
+/**
+ * Codex with `--json` reports failures as JSONL events on stdout
+ * (`turn.failed`, top-level `error`), not on stderr. Extract the terminal
+ * failure, preferring `turn.failed`, plus warnings such as
+ * "Model metadata for `x` not found", codex's only hint that a model slug
+ * is unknown.
+ */
+export function extractCodexError(stdout) {
+    let turnFailed;
+    let topLevelError;
+    let turnCompleted = false;
+    const warnings = [];
+    for (const evt of parseEvents(stdout)) {
+        if (evt.type === "turn.completed") {
+            turnCompleted = true;
+        }
+        else if (evt.type === "turn.failed") {
+            const err = evt.error;
+            if (typeof err?.message === "string")
+                turnFailed = unwrapCodexMessage(err.message);
+        }
+        else if (evt.type === "error" && typeof evt.message === "string") {
+            topLevelError = unwrapCodexMessage(evt.message);
+        }
+        else if (evt.type === "item.completed") {
+            const item = evt.item;
+            if (item?.type === "error" &&
+                typeof item.message === "string" &&
+                item.message.startsWith("Model metadata for")) {
+                warnings.push(item.message);
+            }
+        }
+    }
+    // A top-level `error` event is not always terminal: codex also emits them
+    // for retried stream disconnects ("Reconnecting... 1/5") in runs that go
+    // on to complete. Treat it as the failure only when the turn never
+    // completed.
+    const message = turnFailed ?? (turnCompleted ? undefined : topLevelError);
+    return { message, warnings };
+}
+/**
+ * Recover the final agent message from the event stream. Used only when the
+ * `-o` output file is missing or empty.
+ */
+export function extractCodexAgentMessage(stdout) {
+    let last;
+    for (const evt of parseEvents(stdout)) {
+        if (evt.type !== "item.completed")
+            continue;
+        const item = evt.item;
+        if (item?.type === "agent_message" && typeof item.text === "string") {
+            last = item.text;
+        }
+    }
+    return last;
+}
+/**
+ * Pure interpretation of one `codex exec --json` run. Order matters:
+ * 1. A terminal failure in the event stream wins, whatever else exists.
+ * 2. The `-o` file, if non-empty, is the output.
+ * 3. Else the last `agent_message` event.
+ * 4. Else failure. Raw stdout (JSONL events) is never returned as output.
+ */
+export function interpretCodexResult(run) {
+    const stderr = run.stderr ?? "";
+    const eventError = extractCodexError(run.stdout);
+    if (eventError.message) {
+        const evidence = `${eventError.message}\n${stderr}`;
+        const stderrSummary = summarizeStderr(stderr);
+        const message = stderrSummary
+            ? `${eventError.message}\n${stderrSummary}`
+            : eventError.message;
+        return { ok: false, error: classifyError(evidence, run.exitCode, { message, stderr }) };
+    }
+    const sessionId = extractCodexThreadId(run.stdout);
+    if (run.fileContent && run.fileContent.trim().length > 0) {
+        return { ok: true, output: run.fileContent, sessionId };
+    }
+    const agentMessage = extractCodexAgentMessage(run.stdout);
+    if (agentMessage && agentMessage.trim().length > 0) {
+        return { ok: true, output: agentMessage, sessionId };
+    }
+    return { ok: false, error: classifyError(stderr, run.exitCode) };
+}
+export function classifyError(evidence, exitCode, overrides = {}) {
+    const lower = evidence.toLowerCase();
     const capabilityPatterns = [
         /\bunknown (?:flag|option|argument)\b/,
         /\bunrecognized (?:flag|option|argument)\b/,
@@ -54,9 +175,11 @@ export function classifyError(stderr, exitCode) {
     const isCapability = capabilityPatterns.some((pattern) => pattern.test(lower));
     return {
         kind: isCapability ? "capability" : "fatal",
-        message: stderr.slice(0, 500) || `codex exited with code ${exitCode}`,
+        message: overrides.message ||
+            summarizeStderr(evidence) ||
+            `codex exited with code ${exitCode}`,
         exitCode,
-        stderr,
+        stderr: overrides.stderr ?? evidence,
     };
 }
 export class CodexProvider {
@@ -115,13 +238,13 @@ export class CodexProvider {
             });
             const duration = Date.now() - start;
             const exitCode = result.exitCode ?? 1;
-            let content = "";
+            let fileContent = null;
             try {
-                content = readFileSync(outFile, "utf-8");
+                fileContent = readFileSync(outFile, "utf-8");
             }
             catch {
-                // Fall back to stdout if output file wasn't created
-                content = result.stdout ?? "";
+                // Output file not created; interpretCodexResult falls back to the
+                // agent_message event, never to raw stdout.
             }
             // Clean up temp files
             try {
@@ -138,21 +261,22 @@ export class CodexProvider {
                     // ignore
                 }
             }
-            if (content && content.trim().length > 0) {
-                // Capture thread_id from --json stdout. The first event is
-                // `thread.started` (fresh) or `thread.resumed` (resume). Both
-                // carry `thread_id`. We treat parse failures as "no session
-                // tracking" rather than as errors — sessions are an
-                // optimization, not a correctness requirement.
-                const sessionId = extractCodexThreadId(result.stdout);
-                return { ok: true, output: content, duration, sessionId };
+            for (const warning of extractCodexError(result.stdout).warnings) {
+                process.stderr.write(`[planpong] codex: ${warning}\n`);
             }
-            logClassificationFailure(this.name, exitCode, result.stderr);
-            return {
-                ok: false,
-                error: classifyError(result.stderr ?? "", exitCode),
-                duration,
-            };
+            // Session IDs come from the thread.started / thread.resumed event;
+            // a missing one means "no session tracking", not an error.
+            const interpreted = interpretCodexResult({
+                stdout: result.stdout,
+                stderr: result.stderr,
+                exitCode,
+                fileContent,
+            });
+            if (interpreted.ok) {
+                return { ...interpreted, duration };
+            }
+            logClassificationFailure(this.name, exitCode, interpreted.error.message);
+            return { ok: false, error: interpreted.error, duration };
         }
         catch (error) {
             const duration = Date.now() - start;

@@ -2,8 +2,18 @@ import { describe, it, expect } from "vitest";
 import {
   CodexProvider,
   classifyError,
+  extractCodexAgentMessage,
+  extractCodexError,
   extractCodexThreadId,
+  interpretCodexResult,
 } from "./codex.js";
+import { readFileSync } from "node:fs";
+
+const fixture = (name: string) =>
+  readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), "utf-8");
+
+const INVALID_MODEL = fixture("codex-invalid-model.stdout.jsonl");
+const SUCCESS = fixture("codex-success.stdout.jsonl");
 
 describe("extractCodexThreadId", () => {
   it("returns the thread_id from a thread.started event on the first line", () => {
@@ -125,9 +135,9 @@ describe("classifyError", () => {
     expect(err.exitCode).toBe(137);
   });
 
-  it("truncates stderr to 500 characters in the message field", () => {
-    const long = "x".repeat(800);
-    expect(classifyError(long, 1).message.length).toBe(500);
+  it("caps the message at 800 characters, keeping the tail", () => {
+    const long = "a".repeat(500) + "z".repeat(800);
+    expect(classifyError(long, 1).message).toBe("z".repeat(800));
   });
 
   it("preserves the raw stderr on the error object", () => {
@@ -169,5 +179,104 @@ describe("CodexProvider", () => {
     ).rejects.toThrow(
       "codex provider: newSessionId and resumeSessionId are mutually exclusive",
     );
+  });
+});
+
+describe("extractCodexError", () => {
+  it("unwraps the 400 reason from a captured invalid-model run", () => {
+    const { message } = extractCodexError(INVALID_MODEL);
+    expect(message).toBe(
+      "400 invalid_request_error: The 'gpt-5.3-codex' model is not supported when using Codex with a ChatGPT account.",
+    );
+  });
+
+  it("reports the unknown-model metadata item as a warning", () => {
+    const { warnings } = extractCodexError(INVALID_MODEL);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/^Model metadata for `gpt-5.3-codex` not found/);
+  });
+
+  it("returns no failure for a captured successful run", () => {
+    expect(extractCodexError(SUCCESS)).toEqual({ message: undefined, warnings: [] });
+  });
+
+  it("ignores a top-level error event when the turn later completes (stream retry)", () => {
+    const stdout = [
+      JSON.stringify({ type: "thread.started", thread_id: "t" }),
+      JSON.stringify({ type: "error", message: "Reconnecting... 1/5" }),
+      JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "ok" } }),
+      JSON.stringify({ type: "turn.completed" }),
+    ].join("\n");
+    expect(extractCodexError(stdout).message).toBeUndefined();
+  });
+
+  it("treats a top-level error as terminal when the turn never completes", () => {
+    const stdout = JSON.stringify({ type: "error", message: "stream disconnected" });
+    expect(extractCodexError(stdout).message).toBe("stream disconnected");
+  });
+});
+
+describe("extractCodexAgentMessage", () => {
+  it("returns the agent message from a captured successful run", () => {
+    expect(extractCodexAgentMessage(SUCCESS)).toBe("ok");
+  });
+
+  it("returns undefined when there is no agent message", () => {
+    expect(extractCodexAgentMessage(INVALID_MODEL)).toBeUndefined();
+  });
+});
+
+describe("interpretCodexResult", () => {
+  const failedRun = { stdout: INVALID_MODEL, stderr: "", exitCode: 1 };
+
+  it("failure events + no output file: fatal with the 400 reason", () => {
+    const r = interpretCodexResult({ ...failedRun, fileContent: null });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.kind).toBe("fatal");
+    expect(r.error.message).toContain("model is not supported");
+  });
+
+  it("failure events + empty output file: fatal", () => {
+    const r = interpretCodexResult({ ...failedRun, fileContent: "" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe("fatal");
+  });
+
+  it("failure events win even if the output file has content", () => {
+    const r = interpretCodexResult({ ...failedRun, fileContent: "partial" });
+    expect(r.ok).toBe(false);
+  });
+
+  it("success with output file returns the file and thread id", () => {
+    const r = interpretCodexResult({ stdout: SUCCESS, stderr: "", exitCode: 0, fileContent: "from file" });
+    expect(r).toEqual({ ok: true, output: "from file", sessionId: "01a0d932-d78c-7d21-9b1a-28415aaea2c6" });
+  });
+
+  it("success without output file recovers the agent message, never raw stdout", () => {
+    const r = interpretCodexResult({ stdout: SUCCESS, stderr: "", exitCode: 0, fileContent: null });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.output).toBe("ok");
+  });
+
+  it("no file and no agent message: failure classified from stderr", () => {
+    const r = interpretCodexResult({
+      stdout: JSON.stringify({ type: "thread.started", thread_id: "t" }),
+      stderr: "error: unexpected argument '--output-schema' found",
+      exitCode: 2,
+      fileContent: null,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe("capability");
+  });
+
+  it("schema rejection reported only in stdout events: capability", () => {
+    const stdout = JSON.stringify({
+      type: "turn.failed",
+      error: { message: "invalid_json_schema: schema is not supported" },
+    });
+    const r = interpretCodexResult({ stdout, stderr: "", exitCode: 1, fileContent: null });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe("capability");
   });
 });

@@ -2,6 +2,7 @@ import { execa } from "execa";
 import {
   assertMutuallyExclusiveSessions,
   logClassificationFailure,
+  summarizeStderr,
 } from "./shared.js";
 import type {
   Provider,
@@ -63,8 +64,92 @@ export function extractStructuredOutput(stdout: string): string | null {
  * `fatal` (terminal). Capability errors indicate the CLI doesn't support the
  * requested structured output flag; fatal errors are everything else.
  */
-export function classifyError(stderr: string, exitCode: number): ProviderError {
-  const lower = stderr.toLowerCase();
+/**
+ * If stdout is an error envelope, return its evidence text. Claude reports
+ * API failures (unknown model, auth, rate limit) as `is_error: true`, often
+ * with `subtype: "success"`, so both fields are checked.
+ */
+export function extractEnvelopeError(stdout: string): string | null {
+  let envelope: Record<string, unknown>;
+  try {
+    envelope = JSON.parse(stdout);
+  } catch {
+    return null;
+  }
+  if (!envelope || typeof envelope !== "object") return null;
+  const subtype = typeof envelope.subtype === "string" ? envelope.subtype : "";
+  if (envelope.is_error !== true && !subtype.startsWith("error")) return null;
+  const parts = [
+    typeof envelope.result === "string" ? envelope.result : null,
+    envelope.error != null ? JSON.stringify(envelope.error) : null,
+    envelope.errors != null ? JSON.stringify(envelope.errors) : null,
+    typeof envelope.api_error_status === "number"
+      ? `api_error_status ${envelope.api_error_status}`
+      : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join("\n") : `claude reported an error (${subtype || "is_error"})`;
+}
+
+const ENVELOPE_CAPABILITY_PATTERN =
+  /invalid (?:json )?schema|json-schema|structured output (?:is )?not supported/i;
+
+export type ClaudeResult =
+  | { ok: true; output: string }
+  | { ok: false; error: ProviderError };
+
+/**
+ * Pure interpretation of one structured-output (`--output-format json`)
+ * run. An error envelope is classified from its own text; only a
+ * successful envelope that lacks `structured_output` is a capability
+ * failure.
+ */
+export function interpretStructuredResult(run: {
+  stdout: string;
+  stderr: string | undefined;
+  exitCode: number;
+}): ClaudeResult {
+  const stderr = run.stderr ?? "";
+  const envelopeError = extractEnvelopeError(run.stdout);
+  if (envelopeError !== null) {
+    // An envelope means the CLI already accepted every flag, so flag-level
+    // indicators ("unrecognized", "unknown option") can't mean a capability
+    // gap here. Real stderr for a bad model is `[claude-code:unrecognized_model]`,
+    // which the general classifier would misread. Only schema wording counts.
+    const evidence = `${envelopeError}\n${stderr}`;
+    const isSchemaProblem = ENVELOPE_CAPABILITY_PATTERN.test(evidence);
+    return {
+      ok: false,
+      error: {
+        kind: isSchemaProblem ? "capability" : "fatal",
+        // Envelope fields are already clean text; keep all of them (the
+        // result sentence plus status) rather than picking one line.
+        message: envelopeError.replace(/\n/g, "; ").slice(0, 800),
+        exitCode: run.exitCode,
+        stderr,
+      },
+    };
+  }
+  const extracted = extractStructuredOutput(run.stdout);
+  if (extracted === null) {
+    return {
+      ok: false,
+      error: {
+        kind: "capability",
+        message: `claude returned envelope without structured_output field: ${run.stdout.slice(0, 300)}`,
+        exitCode: run.exitCode,
+        stderr,
+      },
+    };
+  }
+  return { ok: true, output: extracted };
+}
+
+export function classifyError(
+  evidence: string,
+  exitCode: number,
+  overrides: { message?: string; stderr?: string } = {},
+): ProviderError {
+  const lower = evidence.toLowerCase();
   const capabilityIndicators = [
     "unknown flag",
     "unknown option",
@@ -79,9 +164,12 @@ export function classifyError(stderr: string, exitCode: number): ProviderError {
   );
   return {
     kind: isCapability ? "capability" : "fatal",
-    message: stderr.slice(0, 500) || `claude exited with code ${exitCode}`,
+    message:
+      overrides.message ||
+      summarizeStderr(evidence) ||
+      `claude exited with code ${exitCode}`,
     exitCode,
-    stderr,
+    stderr: overrides.stderr ?? evidence,
   };
 }
 
@@ -157,21 +245,16 @@ export class ClaudeProvider implements Provider {
       const sessionId = options.newSessionId ?? options.resumeSessionId;
       if (result.stdout && result.stdout.trim().length > 0) {
         if (options.jsonSchema) {
-          // Parse claude's envelope and extract structured_output.
-          const extracted = extractStructuredOutput(result.stdout);
-          if (extracted === null) {
-            return {
-              ok: false,
-              error: {
-                kind: "capability",
-                message: `claude returned envelope without structured_output field: ${result.stdout.slice(0, 300)}`,
-                exitCode,
-                stderr: result.stderr,
-              },
-              duration,
-            };
+          const interpreted = interpretStructuredResult({
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exitCode,
+          });
+          if (interpreted.ok) {
+            return { ok: true, output: interpreted.output, duration, sessionId };
           }
-          return { ok: true, output: extracted, duration, sessionId };
+          logClassificationFailure(this.name, exitCode, interpreted.error.message);
+          return { ok: false, error: interpreted.error, duration };
         }
         return { ok: true, output: result.stdout, duration, sessionId };
       }

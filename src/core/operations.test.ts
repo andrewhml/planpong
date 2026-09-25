@@ -16,6 +16,7 @@ import {
   type RoundSeverity,
 } from "./operations.js";
 import * as sessionModule from "./session.js";
+import { interpretGeminiResult } from "../providers/gemini.js";
 import { RoundMetricsSchema } from "../schemas/metrics.js";
 import type { DirectionFeedback, ReviewFeedback, RiskFeedback } from "../schemas/feedback.js";
 import type {
@@ -485,6 +486,30 @@ describe("Invocation state machine via runReviewRound", () => {
     const { session, config } = startSession(provider);
     await expect(runReviewRound(session, tmpDir, config, provider)).rejects.toThrow(
       /fatal/,
+    );
+    expect(provider.invokeCalls).toHaveLength(1);
+    expect(provider.markedNonCapable).toBe(false);
+  });
+
+  it("surfaces the provider's real reason in the thrown error (captured gemini tier rejection)", async () => {
+    const interpreted = interpretGeminiResult({
+      stdout: readFileSync(
+        new URL("../providers/__fixtures__/gemini-ineligible.stdout.txt", import.meta.url),
+        "utf-8",
+      ),
+      stderr: readFileSync(
+        new URL("../providers/__fixtures__/gemini-ineligible.stderr.txt", import.meta.url),
+        "utf-8",
+      ),
+      exitCode: 1,
+    });
+    if (interpreted.ok) throw new Error("fixture should be a failure");
+    const provider = new MockProvider([
+      { response: { ok: false, error: interpreted.error, duration: 50 } },
+    ]);
+    const { session, config } = startSession(provider);
+    await expect(runReviewRound(session, tmpDir, config, provider)).rejects.toThrow(
+      /UNSUPPORTED_CLIENT/,
     );
     expect(provider.invokeCalls).toHaveLength(1);
     expect(provider.markedNonCapable).toBe(false);
