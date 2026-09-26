@@ -1,0 +1,897 @@
+{
+  "direction_feedback": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "needs_revision",
+          "blocked"
+        ]
+      },
+      "summary": {
+        "type": "string"
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "P1",
+                "P2",
+                "P3"
+              ]
+            },
+            "section": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "suggestion": {
+              "type": "string"
+            },
+            "quoted_text": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "severity",
+            "section",
+            "title",
+            "description",
+            "suggestion",
+            "quoted_text"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "confidence": {
+        "type": "string",
+        "enum": [
+          "high",
+          "medium",
+          "low"
+        ]
+      },
+      "approach_assessment": {
+        "type": "string"
+      },
+      "alternatives": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "approach": {
+              "type": "string"
+            },
+            "tradeoff": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "approach",
+            "tradeoff"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "assumptions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "verdict",
+      "summary",
+      "issues",
+      "confidence",
+      "approach_assessment",
+      "alternatives",
+      "assumptions"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "risk_feedback": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "needs_revision",
+          "blocked"
+        ]
+      },
+      "summary": {
+        "type": "string"
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "P1",
+                "P2",
+                "P3"
+              ]
+            },
+            "section": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "suggestion": {
+              "type": "string"
+            },
+            "quoted_text": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "severity",
+            "section",
+            "title",
+            "description",
+            "suggestion",
+            "quoted_text"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "risk_level": {
+        "type": "string",
+        "enum": [
+          "high",
+          "medium",
+          "low"
+        ]
+      },
+      "risks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "category": {
+              "type": "string",
+              "enum": [
+                "dependency",
+                "integration",
+                "operational",
+                "assumption",
+                "external"
+              ]
+            },
+            "likelihood": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            "impact": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "mitigation": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "category",
+            "likelihood",
+            "impact",
+            "title",
+            "description",
+            "mitigation"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "verdict",
+      "summary",
+      "issues",
+      "risk_level",
+      "risks"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "detail_feedback": {
+    "type": "object",
+    "properties": {
+      "verdict": {
+        "type": "string",
+        "enum": [
+          "needs_revision",
+          "approved",
+          "approved_with_notes",
+          "blocked"
+        ]
+      },
+      "summary": {
+        "type": "string"
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "P1",
+                "P2",
+                "P3"
+              ]
+            },
+            "section": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "suggestion": {
+              "type": "string"
+            },
+            "quoted_text": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "severity",
+            "section",
+            "title",
+            "description",
+            "suggestion",
+            "quoted_text"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "verdict",
+      "summary",
+      "issues"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "planner_revision": {
+    "type": "object",
+    "properties": {
+      "responses": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue_id": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "rejected",
+                "deferred"
+              ]
+            },
+            "severity_dispute": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "revised": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "justification": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "original",
+                "revised",
+                "justification"
+              ],
+              "additionalProperties": false
+            },
+            "rationale": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issue_id",
+            "action",
+            "severity_dispute",
+            "rationale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "updated_plan": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "responses",
+      "updated_plan"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "revision_direction_full": {
+    "type": "object",
+    "properties": {
+      "responses": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue_id": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "rejected",
+                "deferred"
+              ]
+            },
+            "severity_dispute": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "revised": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "justification": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "original",
+                "revised",
+                "justification"
+              ],
+              "additionalProperties": false
+            },
+            "rationale": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issue_id",
+            "action",
+            "severity_dispute",
+            "rationale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "updated_plan": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "responses",
+      "updated_plan"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "revision_direction_edits": {
+    "type": "object",
+    "properties": {
+      "responses": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue_id": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "rejected",
+                "deferred"
+              ]
+            },
+            "severity_dispute": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "revised": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "justification": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "original",
+                "revised",
+                "justification"
+              ],
+              "additionalProperties": false
+            },
+            "rationale": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issue_id",
+            "action",
+            "severity_dispute",
+            "rationale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "updated_plan": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "responses",
+      "updated_plan"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "revision_risk_full": {
+    "type": "object",
+    "properties": {
+      "responses": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue_id": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "rejected",
+                "deferred"
+              ]
+            },
+            "severity_dispute": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "revised": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "justification": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "original",
+                "revised",
+                "justification"
+              ],
+              "additionalProperties": false
+            },
+            "rationale": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issue_id",
+            "action",
+            "severity_dispute",
+            "rationale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "updated_plan": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "responses",
+      "updated_plan"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "revision_risk_edits": {
+    "type": "object",
+    "properties": {
+      "responses": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue_id": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "rejected",
+                "deferred"
+              ]
+            },
+            "severity_dispute": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "revised": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "justification": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "original",
+                "revised",
+                "justification"
+              ],
+              "additionalProperties": false
+            },
+            "rationale": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issue_id",
+            "action",
+            "severity_dispute",
+            "rationale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "edits": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "section": {
+              "type": "string",
+              "minLength": 1
+            },
+            "before": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "after": {
+              "type": "string",
+              "maxLength": 5000
+            }
+          },
+          "required": [
+            "section",
+            "before",
+            "after"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "responses",
+      "edits"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "revision_detail_full": {
+    "type": "object",
+    "properties": {
+      "responses": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue_id": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "rejected",
+                "deferred"
+              ]
+            },
+            "severity_dispute": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "revised": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "justification": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "original",
+                "revised",
+                "justification"
+              ],
+              "additionalProperties": false
+            },
+            "rationale": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issue_id",
+            "action",
+            "severity_dispute",
+            "rationale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "updated_plan": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "responses",
+      "updated_plan"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "revision_detail_edits": {
+    "type": "object",
+    "properties": {
+      "responses": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue_id": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "rejected",
+                "deferred"
+              ]
+            },
+            "severity_dispute": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "revised": {
+                  "type": "string",
+                  "enum": [
+                    "P1",
+                    "P2",
+                    "P3"
+                  ]
+                },
+                "justification": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "original",
+                "revised",
+                "justification"
+              ],
+              "additionalProperties": false
+            },
+            "rationale": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issue_id",
+            "action",
+            "severity_dispute",
+            "rationale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "edits": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "section": {
+              "type": "string",
+              "minLength": 1
+            },
+            "before": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "after": {
+              "type": "string",
+              "maxLength": 5000
+            }
+          },
+          "required": [
+            "section",
+            "before",
+            "after"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "responses",
+      "edits"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

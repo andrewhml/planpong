@@ -1,0 +1,114 @@
+{
+  "empty file": {
+    "ok": true,
+    "value": {
+      "planner": {
+        "provider": "claude"
+      },
+      "reviewer": {
+        "provider": "codex"
+      },
+      "plans_dir": "docs/plans",
+      "max_rounds": 10,
+      "human_in_loop": true,
+      "revision_mode": "full",
+      "planner_mode": "inline"
+    }
+  },
+  "minimal": {
+    "ok": true,
+    "value": {
+      "planner": {
+        "provider": "claude"
+      },
+      "reviewer": {
+        "provider": "codex"
+      },
+      "plans_dir": "docs/plans",
+      "max_rounds": 10,
+      "human_in_loop": true,
+      "revision_mode": "full",
+      "planner_mode": "inline"
+    }
+  },
+  "every key": {
+    "ok": true,
+    "value": {
+      "planner": {
+        "provider": "claude",
+        "model": "opus",
+        "effort": "high"
+      },
+      "reviewer": {
+        "provider": "codex",
+        "model": "gpt-6-astra",
+        "effort": "xhigh"
+      },
+      "plans_dir": "docs/plans",
+      "max_rounds": 7,
+      "human_in_loop": false,
+      "revision_mode": "edits",
+      "planner_mode": "external"
+    }
+  },
+  "unknown top-level key": {
+    "ok": true,
+    "value": {
+      "planner": {
+        "provider": "claude"
+      },
+      "reviewer": {
+        "provider": "codex"
+      },
+      "plans_dir": "docs/plans",
+      "max_rounds": 5,
+      "human_in_loop": true,
+      "revision_mode": "full",
+      "planner_mode": "inline"
+    }
+  },
+  "unknown role key": {
+    "ok": true,
+    "value": {
+      "planner": {
+        "provider": "claude"
+      },
+      "reviewer": {
+        "provider": "codex"
+      },
+      "plans_dir": "docs/plans",
+      "max_rounds": 10,
+      "human_in_loop": true,
+      "revision_mode": "full",
+      "planner_mode": "inline"
+    }
+  },
+  "max_rounds too high": {
+    "ok": false,
+    "error": "ZodError",
+    "issuePaths": [
+      "max_rounds"
+    ]
+  },
+  "max_rounds not an integer": {
+    "ok": false,
+    "error": "ZodError",
+    "issuePaths": [
+      "max_rounds"
+    ]
+  },
+  "bad revision_mode": {
+    "ok": false,
+    "error": "ZodError",
+    "issuePaths": [
+      "revision_mode"
+    ]
+  },
+  "provider wrong type": {
+    "ok": false,
+    "error": "ZodError",
+    "issuePaths": [
+      "planner.provider"
+    ]
+  }
+}

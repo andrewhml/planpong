@@ -1,0 +1,254 @@
+{
+  "full valid": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "responses": [
+          {
+            "issue_id": "F1",
+            "action": "accepted",
+            "rationale": "r"
+          }
+        ],
+        "updated_plan": "# Plan\n"
+      }
+    },
+    "prompted": {
+      "ok": true,
+      "value": {
+        "responses": [
+          {
+            "issue_id": "F1",
+            "action": "accepted",
+            "rationale": "r"
+          }
+        ],
+        "updated_plan": "# Plan\n"
+      }
+    }
+  },
+  "full with severity dispute": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "responses": [
+          {
+            "issue_id": "F1",
+            "action": "accepted",
+            "severity_dispute": {
+              "original": "P1",
+              "revised": "P3",
+              "justification": "j"
+            },
+            "rationale": "r"
+          }
+        ],
+        "updated_plan": "# P\n"
+      }
+    },
+    "prompted": {
+      "ok": true,
+      "value": {
+        "responses": [
+          {
+            "issue_id": "F1",
+            "action": "accepted",
+            "severity_dispute": {
+              "original": "P1",
+              "revised": "P3",
+              "justification": "j"
+            },
+            "rationale": "r"
+          }
+        ],
+        "updated_plan": "# P\n"
+      }
+    }
+  },
+  "full severity_dispute null (strict-mode optional)": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "responses": [
+          {
+            "issue_id": "F1",
+            "action": "accepted",
+            "rationale": "r"
+          }
+        ],
+        "updated_plan": "# P\n"
+      }
+    },
+    "prompted": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "responses.0.severity_dispute"
+      ]
+    }
+  },
+  "full unknown top-level key (strict object)": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "(root)"
+      ]
+    },
+    "prompted": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "(root)"
+      ]
+    }
+  },
+  "full unknown response key": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "responses": [
+          {
+            "issue_id": "F1",
+            "action": "accepted",
+            "rationale": "r"
+          }
+        ],
+        "updated_plan": "# P\n"
+      }
+    },
+    "prompted": {
+      "ok": true,
+      "value": {
+        "responses": [
+          {
+            "issue_id": "F1",
+            "action": "accepted",
+            "rationale": "r"
+          }
+        ],
+        "updated_plan": "# P\n"
+      }
+    }
+  },
+  "full bad action": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "responses.0.action"
+      ]
+    },
+    "prompted": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "responses.0.action"
+      ]
+    }
+  },
+  "full missing updated_plan": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "updated_plan"
+      ]
+    },
+    "prompted": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "updated_plan"
+      ]
+    }
+  },
+  "edits valid": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "responses": [
+          {
+            "issue_id": "F1",
+            "action": "accepted",
+            "rationale": "r"
+          }
+        ],
+        "edits": [
+          {
+            "section": "Steps",
+            "before": "old",
+            "after": "new"
+          }
+        ]
+      }
+    },
+    "prompted": {
+      "ok": true,
+      "value": {
+        "responses": [
+          {
+            "issue_id": "F1",
+            "action": "accepted",
+            "rationale": "r"
+          }
+        ],
+        "edits": [
+          {
+            "section": "Steps",
+            "before": "old",
+            "after": "new"
+          }
+        ]
+      }
+    }
+  },
+  "edits empty section": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "edits.0.section"
+      ]
+    },
+    "prompted": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "edits.0.section"
+      ]
+    }
+  },
+  "edits before too long": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "edits.0.before"
+      ]
+    },
+    "prompted": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "edits.0.before"
+      ]
+    }
+  },
+  "edits with updated_plan too (strict object)": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "(root)"
+      ]
+    },
+    "prompted": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "(root)"
+      ]
+    }
+  }
+}

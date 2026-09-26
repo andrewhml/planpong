@@ -1,32 +1,18 @@
 import { z } from "zod";
 export declare const FeedbackIssueSchema: z.ZodObject<{
     id: z.ZodString;
-    severity: z.ZodEnum<["P1", "P2", "P3"]>;
+    severity: z.ZodEnum<{
+        P1: "P1";
+        P2: "P2";
+        P3: "P3";
+    }>;
     section: z.ZodString;
     title: z.ZodString;
     description: z.ZodString;
     suggestion: z.ZodString;
     quoted_text: z.ZodOptional<z.ZodString>;
     verified: z.ZodOptional<z.ZodBoolean>;
-}, "strip", z.ZodTypeAny, {
-    id: string;
-    severity: "P1" | "P2" | "P3";
-    section: string;
-    title: string;
-    description: string;
-    suggestion: string;
-    quoted_text?: string | undefined;
-    verified?: boolean | undefined;
-}, {
-    id: string;
-    severity: "P1" | "P2" | "P3";
-    section: string;
-    title: string;
-    description: string;
-    suggestion: string;
-    quoted_text?: string | undefined;
-    verified?: boolean | undefined;
-}>;
+}, z.core.$strip>;
 /**
  * Base feedback schema for the detail phase. Includes the `blocked` verdict
  * so fallback parsing can accept it from direction/risk phases when
@@ -41,323 +27,148 @@ export declare const FeedbackIssueSchema: z.ZodObject<{
  * failure mode that the parser-side coercion is specifically there to avoid.
  */
 export declare const ReviewFeedbackSchema: z.ZodObject<{
-    verdict: z.ZodEnum<["needs_revision", "approved", "approved_with_notes", "blocked"]>;
+    verdict: z.ZodEnum<{
+        approved: "approved";
+        approved_with_notes: "approved_with_notes";
+        blocked: "blocked";
+        needs_revision: "needs_revision";
+    }>;
     summary: z.ZodString;
     issues: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
-        severity: z.ZodEnum<["P1", "P2", "P3"]>;
+        severity: z.ZodEnum<{
+            P1: "P1";
+            P2: "P2";
+            P3: "P3";
+        }>;
         section: z.ZodString;
         title: z.ZodString;
         description: z.ZodString;
         suggestion: z.ZodString;
         quoted_text: z.ZodOptional<z.ZodString>;
         verified: z.ZodOptional<z.ZodBoolean>;
-    }, "strip", z.ZodTypeAny, {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }, {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }>, "many">;
+    }, z.core.$strip>>;
     fallback_used: z.ZodOptional<z.ZodBoolean>;
-    missing_phase_fields: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    missing_phase_fields: z.ZodOptional<z.ZodArray<z.ZodString>>;
     quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
     unverified_count: z.ZodOptional<z.ZodNumber>;
-}, "strip", z.ZodTypeAny, {
-    verdict: "approved" | "approved_with_notes" | "blocked" | "needs_revision";
-    summary: string;
-    issues: {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }[];
-    fallback_used?: boolean | undefined;
-    missing_phase_fields?: string[] | undefined;
-    quote_compliance_warning?: boolean | undefined;
-    unverified_count?: number | undefined;
-}, {
-    verdict: "approved" | "approved_with_notes" | "blocked" | "needs_revision";
-    summary: string;
-    issues: {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }[];
-    fallback_used?: boolean | undefined;
-    missing_phase_fields?: string[] | undefined;
-    quote_compliance_warning?: boolean | undefined;
-    unverified_count?: number | undefined;
-}>;
+}, z.core.$strip>;
 export declare const AlternativeSchema: z.ZodObject<{
     approach: z.ZodString;
     tradeoff: z.ZodString;
-}, "strip", z.ZodTypeAny, {
-    approach: string;
-    tradeoff: string;
-}, {
-    approach: string;
-    tradeoff: string;
-}>;
+}, z.core.$strip>;
 export declare const DirectionFeedbackSchema: z.ZodObject<{
-    verdict: z.ZodEnum<["needs_revision", "blocked"]>;
+    verdict: z.ZodEnum<{
+        blocked: "blocked";
+        needs_revision: "needs_revision";
+    }>;
     summary: z.ZodString;
     issues: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
-        severity: z.ZodEnum<["P1", "P2", "P3"]>;
+        severity: z.ZodEnum<{
+            P1: "P1";
+            P2: "P2";
+            P3: "P3";
+        }>;
         section: z.ZodString;
         title: z.ZodString;
         description: z.ZodString;
         suggestion: z.ZodString;
         quoted_text: z.ZodOptional<z.ZodString>;
         verified: z.ZodOptional<z.ZodBoolean>;
-    }, "strip", z.ZodTypeAny, {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }, {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }>, "many">;
-    confidence: z.ZodEnum<["high", "medium", "low"]>;
+    }, z.core.$strip>>;
+    confidence: z.ZodEnum<{
+        high: "high";
+        low: "low";
+        medium: "medium";
+    }>;
     approach_assessment: z.ZodString;
     alternatives: z.ZodArray<z.ZodObject<{
         approach: z.ZodString;
         tradeoff: z.ZodString;
-    }, "strip", z.ZodTypeAny, {
-        approach: string;
-        tradeoff: string;
-    }, {
-        approach: string;
-        tradeoff: string;
-    }>, "many">;
-    assumptions: z.ZodArray<z.ZodString, "many">;
+    }, z.core.$strip>>;
+    assumptions: z.ZodArray<z.ZodString>;
     fallback_used: z.ZodOptional<z.ZodBoolean>;
-    missing_phase_fields: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    missing_phase_fields: z.ZodOptional<z.ZodArray<z.ZodString>>;
     quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
     unverified_count: z.ZodOptional<z.ZodNumber>;
-}, "strip", z.ZodTypeAny, {
-    verdict: "blocked" | "needs_revision";
-    summary: string;
-    issues: {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }[];
-    confidence: "high" | "low" | "medium";
-    approach_assessment: string;
-    alternatives: {
-        approach: string;
-        tradeoff: string;
-    }[];
-    assumptions: string[];
-    fallback_used?: boolean | undefined;
-    missing_phase_fields?: string[] | undefined;
-    quote_compliance_warning?: boolean | undefined;
-    unverified_count?: number | undefined;
-}, {
-    verdict: "blocked" | "needs_revision";
-    summary: string;
-    issues: {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }[];
-    confidence: "high" | "low" | "medium";
-    approach_assessment: string;
-    alternatives: {
-        approach: string;
-        tradeoff: string;
-    }[];
-    assumptions: string[];
-    fallback_used?: boolean | undefined;
-    missing_phase_fields?: string[] | undefined;
-    quote_compliance_warning?: boolean | undefined;
-    unverified_count?: number | undefined;
-}>;
+}, z.core.$strip>;
 export declare const RiskEntrySchema: z.ZodObject<{
     id: z.ZodString;
-    category: z.ZodEnum<["dependency", "integration", "operational", "assumption", "external"]>;
-    likelihood: z.ZodEnum<["high", "medium", "low"]>;
-    impact: z.ZodEnum<["high", "medium", "low"]>;
+    category: z.ZodEnum<{
+        assumption: "assumption";
+        dependency: "dependency";
+        external: "external";
+        integration: "integration";
+        operational: "operational";
+    }>;
+    likelihood: z.ZodEnum<{
+        high: "high";
+        low: "low";
+        medium: "medium";
+    }>;
+    impact: z.ZodEnum<{
+        high: "high";
+        low: "low";
+        medium: "medium";
+    }>;
     title: z.ZodString;
     description: z.ZodString;
     mitigation: z.ZodString;
-}, "strip", z.ZodTypeAny, {
-    id: string;
-    category: "assumption" | "dependency" | "external" | "integration" | "operational";
-    likelihood: "high" | "low" | "medium";
-    impact: "high" | "low" | "medium";
-    title: string;
-    description: string;
-    mitigation: string;
-}, {
-    id: string;
-    category: "assumption" | "dependency" | "external" | "integration" | "operational";
-    likelihood: "high" | "low" | "medium";
-    impact: "high" | "low" | "medium";
-    title: string;
-    description: string;
-    mitigation: string;
-}>;
+}, z.core.$strip>;
 export declare const RiskFeedbackSchema: z.ZodObject<{
-    verdict: z.ZodEnum<["needs_revision", "blocked"]>;
+    verdict: z.ZodEnum<{
+        blocked: "blocked";
+        needs_revision: "needs_revision";
+    }>;
     summary: z.ZodString;
     issues: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
-        severity: z.ZodEnum<["P1", "P2", "P3"]>;
+        severity: z.ZodEnum<{
+            P1: "P1";
+            P2: "P2";
+            P3: "P3";
+        }>;
         section: z.ZodString;
         title: z.ZodString;
         description: z.ZodString;
         suggestion: z.ZodString;
         quoted_text: z.ZodOptional<z.ZodString>;
         verified: z.ZodOptional<z.ZodBoolean>;
-    }, "strip", z.ZodTypeAny, {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }, {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }>, "many">;
-    risk_level: z.ZodEnum<["high", "medium", "low"]>;
+    }, z.core.$strip>>;
+    risk_level: z.ZodEnum<{
+        high: "high";
+        low: "low";
+        medium: "medium";
+    }>;
     risks: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
-        category: z.ZodEnum<["dependency", "integration", "operational", "assumption", "external"]>;
-        likelihood: z.ZodEnum<["high", "medium", "low"]>;
-        impact: z.ZodEnum<["high", "medium", "low"]>;
+        category: z.ZodEnum<{
+            assumption: "assumption";
+            dependency: "dependency";
+            external: "external";
+            integration: "integration";
+            operational: "operational";
+        }>;
+        likelihood: z.ZodEnum<{
+            high: "high";
+            low: "low";
+            medium: "medium";
+        }>;
+        impact: z.ZodEnum<{
+            high: "high";
+            low: "low";
+            medium: "medium";
+        }>;
         title: z.ZodString;
         description: z.ZodString;
         mitigation: z.ZodString;
-    }, "strip", z.ZodTypeAny, {
-        id: string;
-        category: "assumption" | "dependency" | "external" | "integration" | "operational";
-        likelihood: "high" | "low" | "medium";
-        impact: "high" | "low" | "medium";
-        title: string;
-        description: string;
-        mitigation: string;
-    }, {
-        id: string;
-        category: "assumption" | "dependency" | "external" | "integration" | "operational";
-        likelihood: "high" | "low" | "medium";
-        impact: "high" | "low" | "medium";
-        title: string;
-        description: string;
-        mitigation: string;
-    }>, "many">;
+    }, z.core.$strip>>;
     fallback_used: z.ZodOptional<z.ZodBoolean>;
-    missing_phase_fields: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    missing_phase_fields: z.ZodOptional<z.ZodArray<z.ZodString>>;
     quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
     unverified_count: z.ZodOptional<z.ZodNumber>;
-}, "strip", z.ZodTypeAny, {
-    verdict: "blocked" | "needs_revision";
-    summary: string;
-    issues: {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }[];
-    risk_level: "high" | "low" | "medium";
-    risks: {
-        id: string;
-        category: "assumption" | "dependency" | "external" | "integration" | "operational";
-        likelihood: "high" | "low" | "medium";
-        impact: "high" | "low" | "medium";
-        title: string;
-        description: string;
-        mitigation: string;
-    }[];
-    fallback_used?: boolean | undefined;
-    missing_phase_fields?: string[] | undefined;
-    quote_compliance_warning?: boolean | undefined;
-    unverified_count?: number | undefined;
-}, {
-    verdict: "blocked" | "needs_revision";
-    summary: string;
-    issues: {
-        id: string;
-        severity: "P1" | "P2" | "P3";
-        section: string;
-        title: string;
-        description: string;
-        suggestion: string;
-        quoted_text?: string | undefined;
-        verified?: boolean | undefined;
-    }[];
-    risk_level: "high" | "low" | "medium";
-    risks: {
-        id: string;
-        category: "assumption" | "dependency" | "external" | "integration" | "operational";
-        likelihood: "high" | "low" | "medium";
-        impact: "high" | "low" | "medium";
-        title: string;
-        description: string;
-        mitigation: string;
-    }[];
-    fallback_used?: boolean | undefined;
-    missing_phase_fields?: string[] | undefined;
-    quote_compliance_warning?: boolean | undefined;
-    unverified_count?: number | undefined;
-}>;
+}, z.core.$strip>;
 export type FeedbackIssue = z.infer<typeof FeedbackIssueSchema>;
 export type ReviewFeedback = z.infer<typeof ReviewFeedbackSchema>;
 export type DirectionFeedback = z.infer<typeof DirectionFeedbackSchema>;

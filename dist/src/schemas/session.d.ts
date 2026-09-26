@@ -8,87 +8,30 @@ export declare const SessionSchema: z.ZodObject<{
         provider: z.ZodString;
         model: z.ZodOptional<z.ZodString>;
         effort: z.ZodOptional<z.ZodString>;
-    }, "strip", z.ZodTypeAny, {
-        provider: string;
-        model?: string | undefined;
-        effort?: string | undefined;
-    }, {
-        provider: string;
-        model?: string | undefined;
-        effort?: string | undefined;
-    }>;
+    }, z.core.$strip>;
     reviewer: z.ZodObject<{
         provider: z.ZodString;
         model: z.ZodOptional<z.ZodString>;
         effort: z.ZodOptional<z.ZodString>;
-    }, "strip", z.ZodTypeAny, {
-        provider: string;
-        model?: string | undefined;
-        effort?: string | undefined;
-    }, {
-        provider: string;
-        model?: string | undefined;
-        effort?: string | undefined;
+    }, z.core.$strip>;
+    status: z.ZodEnum<{
+        aborted: "aborted";
+        approved: "approved";
+        blocked: "blocked";
+        in_review: "in_review";
+        planning: "planning";
     }>;
-    status: z.ZodEnum<["planning", "in_review", "approved", "blocked", "aborted"]>;
     currentRound: z.ZodNumber;
     startedAt: z.ZodString;
     planHash: z.ZodString;
     initialLineCount: z.ZodOptional<z.ZodNumber>;
     reviewerSessionId: z.ZodOptional<z.ZodString>;
     reviewerSessionInitialized: z.ZodOptional<z.ZodBoolean>;
-    plannerMode: z.ZodDefault<z.ZodEnum<["inline", "external"]>>;
+    plannerMode: z.ZodDefault<z.ZodEnum<{
+        external: "external";
+        inline: "inline";
+    }>>;
     inlineClient: z.ZodOptional<z.ZodString>;
     maxRounds: z.ZodOptional<z.ZodNumber>;
-}, "strip", z.ZodTypeAny, {
-    id: string;
-    repoRoot: string;
-    planPath: string;
-    planPathAbsolute: string;
-    planner: {
-        provider: string;
-        model?: string | undefined;
-        effort?: string | undefined;
-    };
-    reviewer: {
-        provider: string;
-        model?: string | undefined;
-        effort?: string | undefined;
-    };
-    status: "aborted" | "approved" | "blocked" | "in_review" | "planning";
-    currentRound: number;
-    startedAt: string;
-    planHash: string;
-    initialLineCount?: number | undefined;
-    reviewerSessionId?: string | undefined;
-    reviewerSessionInitialized?: boolean | undefined;
-    plannerMode: "external" | "inline";
-    inlineClient?: string | undefined;
-    maxRounds?: number | undefined;
-}, {
-    id: string;
-    repoRoot: string;
-    planPath: string;
-    planPathAbsolute: string;
-    planner: {
-        provider: string;
-        model?: string | undefined;
-        effort?: string | undefined;
-    };
-    reviewer: {
-        provider: string;
-        model?: string | undefined;
-        effort?: string | undefined;
-    };
-    status: "aborted" | "approved" | "blocked" | "in_review" | "planning";
-    currentRound: number;
-    startedAt: string;
-    planHash: string;
-    initialLineCount?: number | undefined;
-    reviewerSessionId?: string | undefined;
-    reviewerSessionInitialized?: boolean | undefined;
-    plannerMode?: "external" | "inline" | undefined;
-    inlineClient?: string | undefined;
-    maxRounds?: number | undefined;
-}>;
+}, z.core.$strip>;
 export type Session = z.infer<typeof SessionSchema>;
