@@ -1,6 +1,6 @@
 # Node 22 Floor and Dependency Major Upgrades
 
-**Status:** In progress (PR 1: Node 22 floor and platform majors)
+**Status:** In progress (PR 2: zod 4)
 **planpong:** R4/10 | claude(high) → claude(claude-opus-5-5/xhigh) | detail | 3P2 2P3 → 3P2 2P3 → 1P2 2P3 → 0 | Accepted: 13 | +27/-0 lines | 5m 19s | Approved after 4 rounds
 
 ## Context
@@ -102,18 +102,18 @@ Three PRs, each behind the CI gate:
 
 ### PR 2: zod 4
 
-- [ ] **Step 5: Lock current behavior before migrating** (first commit of PR 2, on zod 3, so every fixture provably predates zod 4)
+- [x] **Step 5: Lock current behavior before migrating** (first commit of PR 2, on zod 3, so every fixture provably predates zod 4)
   - **JSON Schema golden:** serialize every schema exported by `src/schemas/json-schema.ts` (all phases, both revision modes) to a committed fixture; a test compares against it.
   - **Parse-behavior golden (committed, synthetic):** a fixture set of model-output payloads run through the real parse entry points (`parseStructuredFeedbackForPhase`, `parseFeedbackForPhase` for prompted text, and the revision parsers in `convergence.ts`), recording for each the parsed object or the rejection. Cases: every phase's valid output; `null` where a field is `.nullable()` and where it is only `.optional()`; missing optional fields and fields with `.default()`; extra unknown keys on plain and `.strict()` objects; wrong enum values; prompted-mode text with the `<planpong-feedback>` wrapper; the `approved_with_notes` rule. The test asserts identical parsed objects and identical accept/reject outcomes.
   - **Parse-behavior replay (local, not committed; secondary evidence):** this repo is public, and the real corpus (204 `round-*-feedback.json` / `round-*-response.json` files under `~/workspace/*/*/.planpong/sessions`) contains private plan text from other projects. These files are **post-parse** objects, not raw provider output: feedback files already carry parser-added fields (`verified`, `unverified_count`, `quote_compliance_warning`) and response files hold the applied `updated_plan`. Replaying them shows that real-world, already-normalized shapes still parse identically; it cannot show how zod 4 treats raw edge-case output. Raw provider output is not persisted anywhere, so the committed synthetic golden above is the primary evidence for parse behavior, and the live structured and prompted rounds in Step 7 are the raw-output check. Add `scripts/replay-parse-corpus.ts` that takes a directory list, runs each file through the same parse entry points, and writes a results file (outcome plus a hash of the parsed object) to a gitignored path. Run it on zod 3 before the migration and on zod 4 after; the PR states the file count and that the two results files are identical, without including content.
   - **Persisted-input compatibility:** `session.json` is read without zod (`session.ts:141`, raw cast), so zod 4 cannot change how it loads; say so in a code comment near the golden tests. What *is* zod-parsed from disk: the user's `planpong.yaml` (`PlanpongConfigSchema.parse`, `loader.ts:143`) and round metrics (`RoundMetricsSchema.parse`, `session.ts:290`, read by the MCP `status` tool at `status.ts:102`). Add committed fixtures: a minimal config, a full config with every key, a config with a deprecated/unknown key, a 0.6.x-era metrics file using the old `"legacy"` mode value (handled by the `z.preprocess` in `metrics.ts`), and a current metrics file. Assert each loads to the same object (or fails with the same issue path) before and after.
-- [ ] **Step 6: Migrate**
+- [x] **Step 6: Migrate**
   - `zod@^4.6.5`; remove `zod-to-json-schema` from dependencies.
   - `src/schemas/json-schema.ts`: replace the `zodToJsonSchema` call with `z.toJSONSchema(schema, { target: "draft-7" })`; keep `stripObservabilityFields` and `toOpenAIStrict` unchanged. The golden test must pass unchanged.
   - Add a guard test that every generated schema has a non-empty `properties` object, so a silently empty schema (the zod-to-json-schema failure mode) can never ship.
   - `src/config/mutate.test.ts:146,152,169,180`: update the four regexes to zod 4 default messages.
   - Grep for any other code or test matching zod's default message text or issue codes (`invalid_enum_value` became `invalid_value`); `convergence.ts` embeds `error.message` in `ZodValidationError` text but nothing parses it. Confirm and note.
-- [ ] **Step 7: PR 2 verification**
+- [x] **Step 7: PR 2 verification**
   - Full suite and CI green.
   - Live review round from `dist/` in structured mode for both providers (codex `--output-schema`, claude `--json-schema`), confirming no downgrade to prompted mode in the round metrics.
   - MCP: run `scripts/mcp-smoke.ts` against `../planpong-node22/dist` (not the registered server) for one real review round with each reviewer provider; confirm the printed server path is the worktree, tool calls validate, structured mode in the round metrics, and bad input still errors readably.
