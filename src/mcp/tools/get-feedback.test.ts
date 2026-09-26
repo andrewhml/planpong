@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getFeedbackHandler } from "./get-feedback.js";
+import { loadConfig, loadSessionConfig } from "../../config/loader.js";
 import * as operations from "../../core/operations.js";
 import type { ReviewRoundResult } from "../../core/operations.js";
 import type { DirectionFeedback } from "../../schemas/feedback.js";
@@ -290,5 +291,69 @@ describe("getFeedbackHandler timing response contract", () => {
 
     expect(payload.round).toBe(2);
     expect(updated?.currentRound).toBe(2);
+  });
+});
+
+describe("max_rounds from start_review survives later tool calls", () => {
+  let tmpDir: string;
+  let planPath: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "planpong-maxrounds-"));
+    mkdirSync(join(tmpDir, "docs", "plans"), { recursive: true });
+    planPath = join(tmpDir, "docs", "plans", "plan.md");
+    writeFileSync(planPath, "# Plan\n\n**Status:** Draft\n\n## Steps\n- [ ] x\n");
+    // The config file says 10; the session was started with 1.
+    writeFileSync(join(tmpDir, "planpong.yaml"), "max_rounds: 10\n");
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function startWithMaxRounds(maxRounds: number): string {
+    const config = { ...loadConfig({ cwd: tmpDir }), max_rounds: maxRounds };
+    const { session } = operations.initReviewSession(planPath, tmpDir, config);
+    return session.id;
+  }
+
+  it("persists the start-time max_rounds on the session", () => {
+    const id = startWithMaxRounds(1);
+    expect(readSessionState(tmpDir, id)?.maxRounds).toBe(1);
+  });
+
+  it("stops after round 1 when started with max_rounds 1, despite max_rounds 10 in planpong.yaml", async () => {
+    const id = startWithMaxRounds(1);
+    const session = readSessionState(tmpDir, id)!;
+    session.currentRound = 1;
+    writeSessionState(tmpDir, session);
+    writeRoundFeedback(tmpDir, id, 1, makeFeedback());
+    writeRoundResponse(tmpDir, id, 1, { responses: [], updated_plan: "# Plan\n" });
+    const review = vi.spyOn(operations, "runReviewRound");
+
+    const result = await getFeedbackHandler({ session_id: id, cwd: tmpDir });
+    const payload = parseResponseJson(result);
+
+    expect(payload.status).toBe("max_rounds");
+    expect(payload.status_line).toContain("R1/1");
+    expect(review).not.toHaveBeenCalled();
+  });
+
+  it("sessions written before maxRounds existed fall back to planpong.yaml", () => {
+    const id = startWithMaxRounds(1);
+    const session = readSessionState(tmpDir, id)!;
+    delete (session as { maxRounds?: number }).maxRounds;
+    expect(loadSessionConfig(tmpDir, session).max_rounds).toBe(10);
+  });
+
+  it("loadSessionConfig takes planner, reviewer, and max_rounds from the session", () => {
+    const id = startWithMaxRounds(3);
+    const session = readSessionState(tmpDir, id)!;
+    session.reviewer = { provider: "claude", model: "opus" };
+    const config = loadSessionConfig(tmpDir, session);
+    expect(config.max_rounds).toBe(3);
+    expect(config.reviewer).toEqual({ provider: "claude", model: "opus" });
   });
 });

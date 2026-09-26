@@ -14,7 +14,7 @@ import {
   writeStatusLineToPlan,
   hashFile,
 } from "../../core/operations.js";
-import { loadConfig } from "../../config/loader.js";
+import { loadSessionConfig } from "../../config/loader.js";
 import { getReviewPhase } from "../../prompts/reviewer.js";
 import {
   IssueResponseSchema,
@@ -124,12 +124,7 @@ export async function recordRevisionHandler(input: {
       const deferred = existingResponse.responses.filter(
         (r) => r.action === "deferred",
       ).length;
-      const config = loadConfig({ cwd });
-      const sessionConfig = {
-        ...config,
-        planner: session.planner,
-        reviewer: session.reviewer,
-      };
+      const sessionConfig = loadSessionConfig(cwd, session);
       const statusLine = writeStatusLineToPlan(
         session,
         cwd,
@@ -232,15 +227,10 @@ export async function recordRevisionHandler(input: {
     };
     writeRoundMetrics(cwd, session.id, round, "revision", metrics);
 
-    // Update plan status line. Use loadConfig for provider labels (the
-    // status-line writer needs them). In inline mode the planner provider
-    // is informational, not invoked.
-    const config = loadConfig({ cwd });
-    const sessionConfig = {
-      ...config,
-      planner: session.planner,
-      reviewer: session.reviewer,
-    };
+    // Update plan status line with the session's config (provider labels
+    // and max_rounds as fixed at start_review). In inline mode the planner
+    // provider is informational, not invoked.
+    const sessionConfig = loadSessionConfig(cwd, session);
     const statusLine = writeStatusLineToPlan(
       session,
       cwd,

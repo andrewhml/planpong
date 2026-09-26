@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { loadConfig } from "../../config/loader.js";
+import { loadSessionConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
 import {
   readRoundFeedback,
@@ -80,12 +80,7 @@ export async function reviseHandler(input: {
       );
     }
 
-    const config = loadConfig({ cwd });
-    const sessionConfig = {
-      ...config,
-      planner: session.planner,
-      reviewer: session.reviewer,
-    };
+    const sessionConfig = loadSessionConfig(cwd, session);
     const feedback = readRoundFeedback(cwd, session.id, input.expected_round);
     if (!feedback) {
       return errorResponse(

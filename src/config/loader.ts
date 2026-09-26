@@ -144,3 +144,27 @@ export function loadConfig(options: LoadConfigOptions): PlanpongConfig {
   maybeEmitGeminiReviewerWarning(parsed);
   return parsed;
 }
+
+/**
+ * The config a review session runs under: the current planpong.yaml
+ * (for settings not captured at start), overlaid with what the session
+ * fixed at start_review: planner, reviewer, and max_rounds. Every MCP tool
+ * after start_review must use this rather than loadConfig alone, or
+ * start-time overrides are lost.
+ */
+export function loadSessionConfig(
+  cwd: string,
+  session: {
+    planner: PlanpongConfig["planner"];
+    reviewer: PlanpongConfig["reviewer"];
+    maxRounds?: number;
+  },
+): PlanpongConfig {
+  const config = loadConfig({ cwd });
+  return {
+    ...config,
+    planner: session.planner,
+    reviewer: session.reviewer,
+    max_rounds: session.maxRounds ?? config.max_rounds,
+  };
+}
