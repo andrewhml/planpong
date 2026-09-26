@@ -440,6 +440,7 @@ export function initReviewSession(
     config.planner_mode,
   );
   if (inlineClient) session.inlineClient = inlineClient;
+  session.maxRounds = config.max_rounds;
   session.initialLineCount = countLines(planContent);
   session.status = "in_review";
   writeInitialPlan(cwd, session.id, originalContent);

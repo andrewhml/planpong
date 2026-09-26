@@ -38,5 +38,10 @@ export const SessionSchema = z.object({
     // initialize handshake), used for the status line label. Optional so
     // sessions written before it existed still parse.
     inlineClient: z.string().optional(),
+    // max_rounds in effect for this session, including a start_review
+    // override. Later tools reload planpong.yaml, so without this an override
+    // was silently lost after round 0. Optional so older sessions still load
+    // (they fall back to the config file, the old behavior).
+    maxRounds: z.number().int().optional(),
 });
 //# sourceMappingURL=session.js.map

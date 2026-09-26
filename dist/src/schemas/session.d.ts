@@ -39,6 +39,7 @@ export declare const SessionSchema: z.ZodObject<{
     reviewerSessionInitialized: z.ZodOptional<z.ZodBoolean>;
     plannerMode: z.ZodDefault<z.ZodEnum<["inline", "external"]>>;
     inlineClient: z.ZodOptional<z.ZodString>;
+    maxRounds: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     id: string;
     repoRoot: string;
@@ -63,6 +64,7 @@ export declare const SessionSchema: z.ZodObject<{
     reviewerSessionInitialized?: boolean | undefined;
     plannerMode: "external" | "inline";
     inlineClient?: string | undefined;
+    maxRounds?: number | undefined;
 }, {
     id: string;
     repoRoot: string;
@@ -87,5 +89,6 @@ export declare const SessionSchema: z.ZodObject<{
     reviewerSessionInitialized?: boolean | undefined;
     plannerMode?: "external" | "inline" | undefined;
     inlineClient?: string | undefined;
+    maxRounds?: number | undefined;
 }>;
 export type Session = z.infer<typeof SessionSchema>;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadConfig } from "../../config/loader.js";
+import { loadSessionConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
 import { readSessionState, writeSessionState, readInitialPlan, withSessionLock, } from "../../core/session.js";
 import { runReviewRound, severityFromFeedback, writeStatusLineToPlan, formatPhaseExtras, phaseExtrasFromFeedback, } from "../../core/operations.js";
@@ -46,12 +46,7 @@ export async function getFeedbackHandler(input) {
                 isError: true,
             };
         }
-        const config = loadConfig({ cwd });
-        const sessionConfig = {
-            ...config,
-            reviewer: session.reviewer,
-            planner: session.planner,
-        };
+        const sessionConfig = loadSessionConfig(cwd, session);
         const roundState = getRoundState(cwd, session, sessionConfig.max_rounds);
         if (session.status !== "in_review") {
             return {

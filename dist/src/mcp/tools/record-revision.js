@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readSessionState, readRoundFeedback, readRoundResponse, writeRoundMetrics, withSessionLock, } from "../../core/session.js";
 import { finalizeRevision, writeStatusLineToPlan, } from "../../core/operations.js";
-import { loadConfig } from "../../config/loader.js";
+import { loadSessionConfig } from "../../config/loader.js";
 import { getReviewPhase } from "../../prompts/reviewer.js";
 import { IssueResponseSchema, } from "../../schemas/revision.js";
 import { formatDecisionDisplay } from "../../core/presentation.js";
@@ -70,12 +70,7 @@ export async function recordRevisionHandler(input) {
             const accepted = existingResponse.responses.filter((r) => r.action === "accepted").length;
             const rejected = existingResponse.responses.filter((r) => r.action === "rejected").length;
             const deferred = existingResponse.responses.filter((r) => r.action === "deferred").length;
-            const config = loadConfig({ cwd });
-            const sessionConfig = {
-                ...config,
-                planner: session.planner,
-                reviewer: session.reviewer,
-            };
+            const sessionConfig = loadSessionConfig(cwd, session);
             const statusLine = writeStatusLineToPlan(session, cwd, sessionConfig, "Revision recorded");
             return buildRecordRevisionResponse({
                 round: session.currentRound,
@@ -155,15 +150,10 @@ export async function recordRevisionHandler(input) {
             planner_mode: "inline",
         };
         writeRoundMetrics(cwd, session.id, round, "revision", metrics);
-        // Update plan status line. Use loadConfig for provider labels (the
-        // status-line writer needs them). In inline mode the planner provider
-        // is informational, not invoked.
-        const config = loadConfig({ cwd });
-        const sessionConfig = {
-            ...config,
-            planner: session.planner,
-            reviewer: session.reviewer,
-        };
+        // Update plan status line with the session's config (provider labels
+        // and max_rounds as fixed at start_review). In inline mode the planner
+        // provider is informational, not invoked.
+        const sessionConfig = loadSessionConfig(cwd, session);
         const statusLine = writeStatusLineToPlan(session, cwd, sessionConfig, "Revision recorded");
         // Match planpong_revise's unverified_rejected counter so the slash
         // command can consume either tool's output uniformly.

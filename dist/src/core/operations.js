@@ -230,6 +230,7 @@ export function initReviewSession(planPath, cwd, config, opts = {}) {
     const session = createSession(cwd, relativePlanPath, config.planner, config.reviewer, hashFile(planPath), config.planner_mode);
     if (inlineClient)
         session.inlineClient = inlineClient;
+    session.maxRounds = config.max_rounds;
     session.initialLineCount = countLines(planContent);
     session.status = "in_review";
     writeInitialPlan(cwd, session.id, originalContent);

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { loadConfig } from "../../config/loader.js";
+import { loadSessionConfig } from "../../config/loader.js";
 import { getProvider } from "../../providers/registry.js";
 import { readRoundFeedback, readRoundResponse, readSessionState, withSessionLock, } from "../../core/session.js";
 import { runRevisionRound, writeStatusLineToPlan, } from "../../core/operations.js";
@@ -45,12 +45,7 @@ export async function reviseHandler(input) {
         if (session.plannerMode === "inline") {
             return errorResponse("session is in inline planner mode — use planpong_record_revision instead", { planner_mode: "inline" });
         }
-        const config = loadConfig({ cwd });
-        const sessionConfig = {
-            ...config,
-            planner: session.planner,
-            reviewer: session.reviewer,
-        };
+        const sessionConfig = loadSessionConfig(cwd, session);
         const feedback = readRoundFeedback(cwd, session.id, input.expected_round);
         if (!feedback) {
             return errorResponse(`No feedback found for session ${session.id} round ${input.expected_round}. Call planpong_get_feedback first.`);
