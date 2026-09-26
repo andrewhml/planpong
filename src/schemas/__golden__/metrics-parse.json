@@ -1,0 +1,89 @@
+{
+  "current file": {
+    "ok": true,
+    "value": {
+      "schema_version": 1,
+      "session_id": "abc123",
+      "round": 1,
+      "phase": "direction",
+      "role": "review",
+      "started_at": "2026-09-25T13:12:14.157Z",
+      "completed_at": "2026-09-25T13:14:22.207Z",
+      "total_duration_ms": 128050,
+      "attempts": [
+        {
+          "mode": "structured",
+          "provider": "codex",
+          "model": "gpt-6-astra",
+          "effort": null,
+          "prompt_chars": 100,
+          "prompt_lines": 10,
+          "output_chars": 50,
+          "output_lines": 5,
+          "duration_ms": 1000,
+          "ok": true,
+          "error_kind": null,
+          "error_exit_code": null
+        }
+      ]
+    }
+  },
+  "0.6.x file with legacy mode": {
+    "ok": true,
+    "value": {
+      "schema_version": 1,
+      "session_id": "abc123",
+      "round": 1,
+      "phase": "direction",
+      "role": "review",
+      "started_at": "2026-09-25T13:12:14.157Z",
+      "completed_at": "2026-09-25T13:14:22.207Z",
+      "total_duration_ms": 128050,
+      "attempts": [
+        {
+          "mode": "prompted",
+          "provider": "codex",
+          "model": "gpt-6-astra",
+          "effort": null,
+          "prompt_chars": 100,
+          "prompt_lines": 10,
+          "output_chars": 50,
+          "output_lines": 5,
+          "duration_ms": 1000,
+          "ok": false,
+          "error_kind": "parse",
+          "error_exit_code": null
+        }
+      ]
+    }
+  },
+  "inline revision with planner_mode": {
+    "ok": true,
+    "value": {
+      "schema_version": 1,
+      "session_id": "abc123",
+      "round": 1,
+      "phase": "direction",
+      "role": "revision",
+      "started_at": "2026-09-25T13:12:14.157Z",
+      "completed_at": "2026-09-25T13:14:22.207Z",
+      "total_duration_ms": 128050,
+      "attempts": [],
+      "planner_mode": "inline"
+    }
+  },
+  "unknown mode": {
+    "ok": false,
+    "error": "ZodError",
+    "issuePaths": [
+      "attempts.0.mode"
+    ]
+  },
+  "wrong schema_version": {
+    "ok": false,
+    "error": "ZodError",
+    "issuePaths": [
+      "schema_version"
+    ]
+  }
+}

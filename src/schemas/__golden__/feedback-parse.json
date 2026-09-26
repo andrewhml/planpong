@@ -1,0 +1,1371 @@
+{
+  "direction valid": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "confidence": "high",
+        "approach_assessment": "ok",
+        "alternatives": [
+          {
+            "approach": "a",
+            "tradeoff": "b"
+          }
+        ],
+        "assumptions": [
+          "x"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "confidence": "high",
+        "approach_assessment": "ok",
+        "alternatives": [
+          {
+            "approach": "a",
+            "tradeoff": "b"
+          }
+        ],
+        "assumptions": [
+          "x"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "confidence": "high",
+        "approach_assessment": "ok",
+        "alternatives": [
+          {
+            "approach": "a",
+            "tradeoff": "b"
+          }
+        ],
+        "assumptions": [
+          "x"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "risk valid": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "risk_level": "medium",
+        "risks": [
+          {
+            "id": "R1",
+            "category": "dependency",
+            "likelihood": "low",
+            "impact": "high",
+            "title": "t",
+            "description": "d",
+            "mitigation": "m"
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "risk_level": "medium",
+        "risks": [
+          {
+            "id": "R1",
+            "category": "dependency",
+            "likelihood": "low",
+            "impact": "high",
+            "title": "t",
+            "description": "d",
+            "mitigation": "m"
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "risk_level": "medium",
+        "risks": [
+          {
+            "id": "R1",
+            "category": "dependency",
+            "likelihood": "low",
+            "impact": "high",
+            "title": "t",
+            "description": "d",
+            "mitigation": "m"
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "detail valid": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "detail approved, no issues": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "approved",
+        "summary": "s",
+        "issues": [],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "approved",
+        "summary": "s",
+        "issues": [],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "approved",
+        "summary": "s",
+        "issues": [],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "detail approved_with_notes + P3 kept": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "approved_with_notes",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P3",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "approved_with_notes",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P3",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "approved_with_notes",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P3",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "detail approved_with_notes + P1 coerced": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P1",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P1",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P1",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "quoted_text null (strict-mode optional)": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": true
+      }
+    },
+    "prompted_tagged": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "issues.0.quoted_text"
+      ]
+    },
+    "prompted_fenced": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "issues.0.quoted_text"
+      ]
+    }
+  },
+  "quoted_text missing": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": true
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": true
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": true
+      }
+    }
+  },
+  "quoted_text not in plan": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "nowhere in the plan",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "nowhere in the plan",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "nowhere in the plan",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "model-supplied verified is stripped": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "nowhere",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "nowhere",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "nowhere",
+            "verified": false
+          }
+        ],
+        "unverified_count": 1,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "unknown top-level key": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "unknown issue key": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "bad severity enum": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "issues.0.severity"
+      ]
+    },
+    "prompted_tagged": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "issues.0.severity"
+      ]
+    },
+    "prompted_fenced": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "issues.0.severity"
+      ]
+    }
+  },
+  "bad verdict enum": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "verdict"
+      ]
+    },
+    "prompted_tagged": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "verdict"
+      ]
+    },
+    "prompted_fenced": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "verdict"
+      ]
+    }
+  },
+  "missing summary": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "summary"
+      ]
+    },
+    "prompted_tagged": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "summary"
+      ]
+    },
+    "prompted_fenced": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "summary"
+      ]
+    }
+  },
+  "summary wrong type": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "summary"
+      ]
+    },
+    "prompted_tagged": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "summary"
+      ]
+    },
+    "prompted_fenced": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "summary"
+      ]
+    }
+  },
+  "direction blocked without rationale coerced": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "confidence": "high",
+        "approach_assessment": "",
+        "alternatives": [
+          {
+            "approach": "a",
+            "tradeoff": "b"
+          }
+        ],
+        "assumptions": [
+          "x"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "confidence": "high",
+        "approach_assessment": "",
+        "alternatives": [
+          {
+            "approach": "a",
+            "tradeoff": "b"
+          }
+        ],
+        "assumptions": [
+          "x"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "confidence": "high",
+        "approach_assessment": "",
+        "alternatives": [
+          {
+            "approach": "a",
+            "tradeoff": "b"
+          }
+        ],
+        "assumptions": [
+          "x"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "direction blocked with rationale kept": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "blocked",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "confidence": "high",
+        "approach_assessment": "ok",
+        "alternatives": [
+          {
+            "approach": "a",
+            "tradeoff": "b"
+          }
+        ],
+        "assumptions": [
+          "x"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "blocked",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "confidence": "high",
+        "approach_assessment": "ok",
+        "alternatives": [
+          {
+            "approach": "a",
+            "tradeoff": "b"
+          }
+        ],
+        "assumptions": [
+          "x"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "blocked",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "confidence": "high",
+        "approach_assessment": "ok",
+        "alternatives": [
+          {
+            "approach": "a",
+            "tradeoff": "b"
+          }
+        ],
+        "assumptions": [
+          "x"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "direction missing confidence": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "confidence"
+      ]
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "fallback_used": true,
+        "missing_phase_fields": [
+          "confidence",
+          "approach_assessment",
+          "alternatives",
+          "assumptions"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "fallback_used": true,
+        "missing_phase_fields": [
+          "confidence",
+          "approach_assessment",
+          "alternatives",
+          "assumptions"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "direction bad confidence": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "confidence"
+      ]
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "fallback_used": true,
+        "missing_phase_fields": [
+          "confidence",
+          "approach_assessment",
+          "alternatives",
+          "assumptions"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "fallback_used": true,
+        "missing_phase_fields": [
+          "confidence",
+          "approach_assessment",
+          "alternatives",
+          "assumptions"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "risk blocked without risks coerced": {
+    "structured": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "risk_level": "medium",
+        "risks": [],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "risk_level": "medium",
+        "risks": [],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "risk_level": "medium",
+        "risks": [],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "risk bad category": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "risks.0.category"
+      ]
+    },
+    "prompted_tagged": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "fallback_used": true,
+        "missing_phase_fields": [
+          "risk_level",
+          "risks"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    },
+    "prompted_fenced": {
+      "ok": true,
+      "value": {
+        "verdict": "needs_revision",
+        "summary": "s",
+        "issues": [
+          {
+            "id": "F1",
+            "severity": "P2",
+            "section": "Steps",
+            "title": "t",
+            "description": "d",
+            "suggestion": "s",
+            "quoted_text": "Read the version from package.json",
+            "verified": true
+          }
+        ],
+        "fallback_used": true,
+        "missing_phase_fields": [
+          "risk_level",
+          "risks"
+        ],
+        "unverified_count": 0,
+        "quote_compliance_warning": false
+      }
+    }
+  },
+  "observability field unverified_count negative": {
+    "structured": {
+      "ok": false,
+      "error": "ZodValidationError",
+      "issuePaths": [
+        "unverified_count"
+      ]
+    },
+    "prompted_tagged": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "unverified_count"
+      ]
+    },
+    "prompted_fenced": {
+      "ok": false,
+      "error": "ZodError",
+      "issuePaths": [
+        "unverified_count"
+      ]
+    }
+  },
+  "prompted: no JSON at all": {
+    "detail": {
+      "ok": false,
+      "error": "Error"
+    }
+  },
+  "structured: invalid JSON": {
+    "detail": {
+      "ok": false,
+      "error": "StructuredOutputParseError"
+    }
+  }
+}
