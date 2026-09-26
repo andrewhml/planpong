@@ -143,13 +143,13 @@ describe("setConfigValue", () => {
 
     it("rejects out-of-range max_rounds", () => {
       expect(() => setConfigValue(tmpDir, "max_rounds", "100")).toThrow(
-        /less than or equal to 50/,
+        /max_rounds: Too big: expected number to be <=50/,
       );
     });
 
     it("rejects zero max_rounds", () => {
       expect(() => setConfigValue(tmpDir, "max_rounds", "0")).toThrow(
-        /greater than or equal to 1/,
+        /max_rounds: Too small: expected number to be >=1/,
       );
     });
 
@@ -166,7 +166,7 @@ describe("setConfigValue", () => {
 
     it("validates enum values for revision_mode", () => {
       expect(() => setConfigValue(tmpDir, "revision_mode", "bogus")).toThrow(
-        /Invalid enum value/,
+        /revision_mode: Invalid option: expected one of "edits"\|"full"/,
       );
     });
 
@@ -177,7 +177,7 @@ describe("setConfigValue", () => {
 
     it("validates enum values for planner_mode", () => {
       expect(() => setConfigValue(tmpDir, "planner_mode", "bad")).toThrow(
-        /Invalid enum value/,
+        /planner_mode: Invalid option: expected one of "inline"\|"external"/,
       );
     });
 

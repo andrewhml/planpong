@@ -6,6 +6,7 @@ import {
   ReviewFeedbackJsonSchema,
   PlannerRevisionJsonSchema,
   getFeedbackJsonSchemaForPhase,
+  getRevisionJsonSchema,
 } from "./json-schema.js";
 import {
   DirectionFeedbackSchema,
@@ -241,4 +242,26 @@ describe("Contract tests — JSON Schema and Zod agree on structural subset", ()
     const parsed = PlannerRevisionSchema.parse(payload);
     expect(parsed.updated_plan).toBe(payload.updated_plan);
   });
+});
+
+describe("generated schemas are never empty", () => {
+  // zod-to-json-schema silently returned {"$schema": ...} with no
+  // properties for zod 4 schemas. That would have shipped an empty schema
+  // to claude --json-schema and codex --output-schema without any error.
+  const all: Record<string, Record<string, unknown>> = {
+    DirectionFeedbackJsonSchema,
+    RiskFeedbackJsonSchema,
+    ReviewFeedbackJsonSchema,
+    PlannerRevisionJsonSchema,
+    revision_detail_edits: getRevisionJsonSchema("detail", "edits"),
+    revision_detail_full: getRevisionJsonSchema("detail", "full"),
+  };
+  for (const [name, schema] of Object.entries(all)) {
+    it(`${name} is an object schema with properties and required keys`, () => {
+      expect(schema.type).toBe("object");
+      const props = schema.properties as Record<string, unknown> | undefined;
+      expect(props && Object.keys(props).length).toBeGreaterThan(0);
+      expect((schema.required as string[]).length).toBe(Object.keys(props!).length);
+    });
+  }
 });

@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import {
   DirectionFeedbackSchema,
   RiskFeedbackSchema,
@@ -158,11 +158,15 @@ function makeNullable(node: unknown): unknown {
   return obj;
 }
 
-function generate(schema: Parameters<typeof zodToJsonSchema>[0]): Record<string, unknown> {
-  const raw = zodToJsonSchema(schema, {
-    target: "jsonSchema7",
-    $refStrategy: "none",
-  });
+function generate(schema: z.ZodType): Record<string, unknown> {
+  // draft-7 keeps the $schema URI the strict-mode validators and our Ajv
+  // tests expect; zod 4's default is 2020-12. Reused sub-schemas are
+  // inlined by default (no $ref), matching the previous generator.
+  const { $schema, ...body } = z.toJSONSchema(schema, { target: "draft-7" });
+  // Emit $schema last, where zod-to-json-schema put it, so the schema text
+  // sent to the models is byte-identical to earlier releases
+  // (src/schemas/__golden__/json-schemas.json).
+  const raw = { ...body, $schema };
   const stripped = stripObservabilityFields(raw);
   return toOpenAIStrict(stripped) as Record<string, unknown>;
 }
