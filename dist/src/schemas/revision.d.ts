@@ -31,22 +31,22 @@ export declare const IssueResponseSchema: z.ZodObject<{
     rationale: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     issue_id: string;
-    action: "accepted" | "rejected" | "deferred";
-    rationale: string;
+    action: "accepted" | "deferred" | "rejected";
     severity_dispute?: {
         original: "P1" | "P2" | "P3";
         revised: "P1" | "P2" | "P3";
         justification: string;
     } | undefined;
+    rationale: string;
 }, {
     issue_id: string;
-    action: "accepted" | "rejected" | "deferred";
-    rationale: string;
+    action: "accepted" | "deferred" | "rejected";
     severity_dispute?: {
         original: "P1" | "P2" | "P3";
         revised: "P1" | "P2" | "P3";
         justification: string;
     } | undefined;
+    rationale: string;
 }>;
 export declare const ReplaceEditSchema: z.ZodObject<{
     section: z.ZodString;
@@ -81,46 +81,46 @@ export declare const DirectionRevisionSchema: z.ZodObject<{
         rationale: z.ZodString;
     }, "strip", z.ZodTypeAny, {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }, {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }>, "many">;
     updated_plan: z.ZodString;
 }, "strict", z.ZodTypeAny, {
     responses: {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }[];
     updated_plan: string;
 }, {
     responses: {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }[];
     updated_plan: string;
 }>;
@@ -144,22 +144,22 @@ export declare const EditsRevisionSchema: z.ZodObject<{
         rationale: z.ZodString;
     }, "strip", z.ZodTypeAny, {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }, {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }>, "many">;
     edits: z.ZodArray<z.ZodObject<{
         section: z.ZodString;
@@ -177,13 +177,13 @@ export declare const EditsRevisionSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     responses: {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }[];
     edits: {
         section: string;
@@ -193,13 +193,13 @@ export declare const EditsRevisionSchema: z.ZodObject<{
 }, {
     responses: {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }[];
     edits: {
         section: string;
@@ -227,46 +227,46 @@ export declare const PlannerRevisionSchema: z.ZodObject<{
         rationale: z.ZodString;
     }, "strip", z.ZodTypeAny, {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }, {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }>, "many">;
     updated_plan: z.ZodString;
 }, "strict", z.ZodTypeAny, {
     responses: {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }[];
     updated_plan: string;
 }, {
     responses: {
         issue_id: string;
-        action: "accepted" | "rejected" | "deferred";
-        rationale: string;
+        action: "accepted" | "deferred" | "rejected";
         severity_dispute?: {
             original: "P1" | "P2" | "P3";
             revised: "P1" | "P2" | "P3";
             justification: string;
         } | undefined;
+        rationale: string;
     }[];
     updated_plan: string;
 }>;

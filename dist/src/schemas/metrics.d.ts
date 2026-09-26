@@ -1,6 +1,6 @@
 import { z } from "zod";
 export declare const InvocationAttemptSchema: z.ZodObject<{
-    mode: z.ZodEffects<z.ZodEnum<["structured", "prompted"]>, "structured" | "prompted", unknown>;
+    mode: z.ZodEffects<z.ZodEnum<["structured", "prompted"]>, "prompted" | "structured", unknown>;
     provider: z.ZodString;
     model: z.ZodNullable<z.ZodString>;
     effort: z.ZodNullable<z.ZodString>;
@@ -13,19 +13,20 @@ export declare const InvocationAttemptSchema: z.ZodObject<{
     error_kind: z.ZodNullable<z.ZodEnum<["capability", "fatal", "parse", "zod", "edit-retry"]>>;
     error_exit_code: z.ZodNullable<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
+    mode: "prompted" | "structured";
     provider: string;
     model: string | null;
     effort: string | null;
-    mode: "structured" | "prompted";
     prompt_chars: number;
     prompt_lines: number;
     output_chars: number | null;
     output_lines: number | null;
     duration_ms: number;
     ok: boolean;
-    error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
+    error_kind: "capability" | "edit-retry" | "fatal" | "parse" | "zod" | null;
     error_exit_code: number | null;
 }, {
+    mode?: unknown;
     provider: string;
     model: string | null;
     effort: string | null;
@@ -35,9 +36,8 @@ export declare const InvocationAttemptSchema: z.ZodObject<{
     output_lines: number | null;
     duration_ms: number;
     ok: boolean;
-    error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
+    error_kind: "capability" | "edit-retry" | "fatal" | "parse" | "zod" | null;
     error_exit_code: number | null;
-    mode?: unknown;
 }>;
 export declare const RoundMetricsSchema: z.ZodObject<{
     schema_version: z.ZodLiteral<1>;
@@ -49,7 +49,7 @@ export declare const RoundMetricsSchema: z.ZodObject<{
     completed_at: z.ZodString;
     total_duration_ms: z.ZodNumber;
     attempts: z.ZodArray<z.ZodObject<{
-        mode: z.ZodEffects<z.ZodEnum<["structured", "prompted"]>, "structured" | "prompted", unknown>;
+        mode: z.ZodEffects<z.ZodEnum<["structured", "prompted"]>, "prompted" | "structured", unknown>;
         provider: z.ZodString;
         model: z.ZodNullable<z.ZodString>;
         effort: z.ZodNullable<z.ZodString>;
@@ -62,19 +62,20 @@ export declare const RoundMetricsSchema: z.ZodObject<{
         error_kind: z.ZodNullable<z.ZodEnum<["capability", "fatal", "parse", "zod", "edit-retry"]>>;
         error_exit_code: z.ZodNullable<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
+        mode: "prompted" | "structured";
         provider: string;
         model: string | null;
         effort: string | null;
-        mode: "structured" | "prompted";
         prompt_chars: number;
         prompt_lines: number;
         output_chars: number | null;
         output_lines: number | null;
         duration_ms: number;
         ok: boolean;
-        error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
+        error_kind: "capability" | "edit-retry" | "fatal" | "parse" | "zod" | null;
         error_exit_code: number | null;
     }, {
+        mode?: unknown;
         provider: string;
         model: string | null;
         effort: string | null;
@@ -84,9 +85,8 @@ export declare const RoundMetricsSchema: z.ZodObject<{
         output_lines: number | null;
         duration_ms: number;
         ok: boolean;
-        error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
+        error_kind: "capability" | "edit-retry" | "fatal" | "parse" | "zod" | null;
         error_exit_code: number | null;
-        mode?: unknown;
     }>, "many">;
     revision_mode: z.ZodOptional<z.ZodNullable<z.ZodEnum<["full", "edits"]>>>;
     edits_attempted: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
@@ -100,43 +100,44 @@ export declare const RoundMetricsSchema: z.ZodObject<{
     schema_version: 1;
     session_id: string;
     round: number;
-    phase: "direction" | "risk" | "detail";
+    phase: "detail" | "direction" | "risk";
     role: "review" | "revision";
     started_at: string;
     completed_at: string;
     total_duration_ms: number;
     attempts: {
+        mode: "prompted" | "structured";
         provider: string;
         model: string | null;
         effort: string | null;
-        mode: "structured" | "prompted";
         prompt_chars: number;
         prompt_lines: number;
         output_chars: number | null;
         output_lines: number | null;
         duration_ms: number;
         ok: boolean;
-        error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
+        error_kind: "capability" | "edit-retry" | "fatal" | "parse" | "zod" | null;
         error_exit_code: number | null;
     }[];
     revision_mode?: "edits" | "full" | null | undefined;
-    planner_mode?: "external" | "inline" | undefined;
     edits_attempted?: number | null | undefined;
     edits_applied?: number | null | undefined;
     edits_failed?: number | null | undefined;
     edits_retried?: number | null | undefined;
     edits_recovered?: number | null | undefined;
     retry_invoked?: boolean | null | undefined;
+    planner_mode?: "external" | "inline" | undefined;
 }, {
     schema_version: 1;
     session_id: string;
     round: number;
-    phase: "direction" | "risk" | "detail";
+    phase: "detail" | "direction" | "risk";
     role: "review" | "revision";
     started_at: string;
     completed_at: string;
     total_duration_ms: number;
     attempts: {
+        mode?: unknown;
         provider: string;
         model: string | null;
         effort: string | null;
@@ -146,18 +147,17 @@ export declare const RoundMetricsSchema: z.ZodObject<{
         output_lines: number | null;
         duration_ms: number;
         ok: boolean;
-        error_kind: "capability" | "fatal" | "parse" | "zod" | "edit-retry" | null;
+        error_kind: "capability" | "edit-retry" | "fatal" | "parse" | "zod" | null;
         error_exit_code: number | null;
-        mode?: unknown;
     }[];
     revision_mode?: "edits" | "full" | null | undefined;
-    planner_mode?: "external" | "inline" | undefined;
     edits_attempted?: number | null | undefined;
     edits_applied?: number | null | undefined;
     edits_failed?: number | null | undefined;
     edits_retried?: number | null | undefined;
     edits_recovered?: number | null | undefined;
     retry_invoked?: boolean | null | undefined;
+    planner_mode?: "external" | "inline" | undefined;
 }>;
 export type InvocationAttempt = z.infer<typeof InvocationAttemptSchema>;
 export type RoundMetrics = z.infer<typeof RoundMetricsSchema>;
