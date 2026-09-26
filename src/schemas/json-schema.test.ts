@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import Ajv from "ajv";
 import {
   DirectionFeedbackJsonSchema,
@@ -13,6 +13,7 @@ import {
   ReviewFeedbackSchema,
 } from "./feedback.js";
 import { PlannerRevisionSchema } from "./revision.js";
+import { parseStructuredFeedbackForPhase } from "../core/convergence.js";
 
 const ajv = new Ajv({ strict: false, allErrors: true });
 
@@ -159,9 +160,11 @@ describe("Contract tests — JSON Schema and Zod agree on structural subset", ()
     expect(() => ReviewFeedbackSchema.parse(payload)).not.toThrow();
   });
 
-  it("ReviewFeedback: refinement violation passes JSON Schema but fails Zod (documented divergence)", () => {
-    // approved_with_notes requires all issues to be P3 — this is a Zod refinement
-    // that does not round-trip to JSON Schema
+  it("ReviewFeedback: approved_with_notes + non-P3 passes JSON Schema; the parser coerces it to needs_revision", () => {
+    // "approved_with_notes requires every issue to be P3" is a cross-field
+    // rule JSON Schema can't express. It used to be a Zod refinement that
+    // rejected the output; it now lives in convergence.ts as a post-parse
+    // coercion so the round survives with a warning.
     const payload = {
       verdict: "approved_with_notes",
       summary: "test",
@@ -180,10 +183,36 @@ describe("Contract tests — JSON Schema and Zod agree on structural subset", ()
       ],
     };
     const validate = ajv.compile(ReviewFeedbackJsonSchema);
-    // JSON Schema accepts it (refinement not representable)
     expect(validate(payload)).toBe(true);
-    // Zod rejects it (refinement enforced post-parse)
-    expect(() => ReviewFeedbackSchema.parse(payload)).toThrow();
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const feedback = parseStructuredFeedbackForPhase(JSON.stringify(payload), "detail");
+    expect(feedback.verdict).toBe("needs_revision");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("coercing to needs_revision"));
+    warn.mockRestore();
+  });
+
+  it("ReviewFeedback: quoted_text: null passes JSON Schema but fails raw Zod (the parser strips nulls first)", () => {
+    const payload = {
+      verdict: "needs_revision",
+      summary: "test",
+      issues: [
+        {
+          id: "F1",
+          severity: "P2",
+          section: "test",
+          title: "test",
+          description: "test",
+          suggestion: "test",
+          quoted_text: null,
+        },
+      ],
+    };
+    expect(ajv.compile(ReviewFeedbackJsonSchema)(payload)).toBe(true);
+    expect(ReviewFeedbackSchema.safeParse(payload).success).toBe(false);
+    expect(parseStructuredFeedbackForPhase(JSON.stringify(payload), "detail").verdict).toBe(
+      "needs_revision",
+    );
   });
 
   it("PlannerRevision: OpenAI-strict payload (with nulls for optional fields) passes JSON Schema", () => {

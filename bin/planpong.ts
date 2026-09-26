@@ -71,4 +71,6 @@ registerReviewCommand(program);
 registerConfigCommand(program);
 registerInitCommand(program);
 
-program.parse();
+// Actions are async (config set/providers, init, review, plan); parseAsync
+// awaits them so a rejected action surfaces instead of floating.
+await program.parseAsync();
