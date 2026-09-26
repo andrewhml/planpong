@@ -11,10 +11,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Node 18 is not tested: dev-only vitest 4 requires ^20 || ^22 || >=24,
-        # even though package.json engines still says >=18. See the Node
-        # engines follow-up in docs/plans/provider-refresh-and-ci-gate.md.
-        node-version: ["20", "22", "24"]
+        # Floor is 22.13 (package.json engines): @inquirer/prompts 8 needs
+        # ^22.13 on the 22 line, commander 15 and vitest 5 need 22.12. Node 20
+        # is EOL. See docs/plans/node-22-and-dependency-majors.md.
+        node-version: ["22", "24", "26"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

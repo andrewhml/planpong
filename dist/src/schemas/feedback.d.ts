@@ -76,6 +76,8 @@ export declare const ReviewFeedbackSchema: z.ZodObject<{
     quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
     unverified_count: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
+    verdict: "approved" | "approved_with_notes" | "blocked" | "needs_revision";
+    summary: string;
     issues: {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -86,13 +88,13 @@ export declare const ReviewFeedbackSchema: z.ZodObject<{
         quoted_text?: string | undefined;
         verified?: boolean | undefined;
     }[];
-    verdict: "needs_revision" | "approved" | "approved_with_notes" | "blocked";
-    summary: string;
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
     quote_compliance_warning?: boolean | undefined;
     unverified_count?: number | undefined;
 }, {
+    verdict: "approved" | "approved_with_notes" | "blocked" | "needs_revision";
+    summary: string;
     issues: {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -103,8 +105,6 @@ export declare const ReviewFeedbackSchema: z.ZodObject<{
         quoted_text?: string | undefined;
         verified?: boolean | undefined;
     }[];
-    verdict: "needs_revision" | "approved" | "approved_with_notes" | "blocked";
-    summary: string;
     fallback_used?: boolean | undefined;
     missing_phase_fields?: string[] | undefined;
     quote_compliance_warning?: boolean | undefined;
@@ -169,6 +169,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
     quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
     unverified_count: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
+    verdict: "blocked" | "needs_revision";
+    summary: string;
     issues: {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -179,9 +181,7 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
         quoted_text?: string | undefined;
         verified?: boolean | undefined;
     }[];
-    verdict: "needs_revision" | "blocked";
-    summary: string;
-    confidence: "high" | "medium" | "low";
+    confidence: "high" | "low" | "medium";
     approach_assessment: string;
     alternatives: {
         approach: string;
@@ -193,6 +193,8 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
     quote_compliance_warning?: boolean | undefined;
     unverified_count?: number | undefined;
 }, {
+    verdict: "blocked" | "needs_revision";
+    summary: string;
     issues: {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -203,9 +205,7 @@ export declare const DirectionFeedbackSchema: z.ZodObject<{
         quoted_text?: string | undefined;
         verified?: boolean | undefined;
     }[];
-    verdict: "needs_revision" | "blocked";
-    summary: string;
-    confidence: "high" | "medium" | "low";
+    confidence: "high" | "low" | "medium";
     approach_assessment: string;
     alternatives: {
         approach: string;
@@ -227,19 +227,19 @@ export declare const RiskEntrySchema: z.ZodObject<{
     mitigation: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     id: string;
+    category: "assumption" | "dependency" | "external" | "integration" | "operational";
+    likelihood: "high" | "low" | "medium";
+    impact: "high" | "low" | "medium";
     title: string;
     description: string;
-    category: "dependency" | "integration" | "operational" | "assumption" | "external";
-    likelihood: "high" | "medium" | "low";
-    impact: "high" | "medium" | "low";
     mitigation: string;
 }, {
     id: string;
+    category: "assumption" | "dependency" | "external" | "integration" | "operational";
+    likelihood: "high" | "low" | "medium";
+    impact: "high" | "low" | "medium";
     title: string;
     description: string;
-    category: "dependency" | "integration" | "operational" | "assumption" | "external";
-    likelihood: "high" | "medium" | "low";
-    impact: "high" | "medium" | "low";
     mitigation: string;
 }>;
 export declare const RiskFeedbackSchema: z.ZodObject<{
@@ -284,19 +284,19 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
         mitigation: z.ZodString;
     }, "strip", z.ZodTypeAny, {
         id: string;
+        category: "assumption" | "dependency" | "external" | "integration" | "operational";
+        likelihood: "high" | "low" | "medium";
+        impact: "high" | "low" | "medium";
         title: string;
         description: string;
-        category: "dependency" | "integration" | "operational" | "assumption" | "external";
-        likelihood: "high" | "medium" | "low";
-        impact: "high" | "medium" | "low";
         mitigation: string;
     }, {
         id: string;
+        category: "assumption" | "dependency" | "external" | "integration" | "operational";
+        likelihood: "high" | "low" | "medium";
+        impact: "high" | "low" | "medium";
         title: string;
         description: string;
-        category: "dependency" | "integration" | "operational" | "assumption" | "external";
-        likelihood: "high" | "medium" | "low";
-        impact: "high" | "medium" | "low";
         mitigation: string;
     }>, "many">;
     fallback_used: z.ZodOptional<z.ZodBoolean>;
@@ -304,6 +304,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
     quote_compliance_warning: z.ZodOptional<z.ZodBoolean>;
     unverified_count: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
+    verdict: "blocked" | "needs_revision";
+    summary: string;
     issues: {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -314,16 +316,14 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
         quoted_text?: string | undefined;
         verified?: boolean | undefined;
     }[];
-    verdict: "needs_revision" | "blocked";
-    summary: string;
-    risk_level: "high" | "medium" | "low";
+    risk_level: "high" | "low" | "medium";
     risks: {
         id: string;
+        category: "assumption" | "dependency" | "external" | "integration" | "operational";
+        likelihood: "high" | "low" | "medium";
+        impact: "high" | "low" | "medium";
         title: string;
         description: string;
-        category: "dependency" | "integration" | "operational" | "assumption" | "external";
-        likelihood: "high" | "medium" | "low";
-        impact: "high" | "medium" | "low";
         mitigation: string;
     }[];
     fallback_used?: boolean | undefined;
@@ -331,6 +331,8 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
     quote_compliance_warning?: boolean | undefined;
     unverified_count?: number | undefined;
 }, {
+    verdict: "blocked" | "needs_revision";
+    summary: string;
     issues: {
         id: string;
         severity: "P1" | "P2" | "P3";
@@ -341,16 +343,14 @@ export declare const RiskFeedbackSchema: z.ZodObject<{
         quoted_text?: string | undefined;
         verified?: boolean | undefined;
     }[];
-    verdict: "needs_revision" | "blocked";
-    summary: string;
-    risk_level: "high" | "medium" | "low";
+    risk_level: "high" | "low" | "medium";
     risks: {
         id: string;
+        category: "assumption" | "dependency" | "external" | "integration" | "operational";
+        likelihood: "high" | "low" | "medium";
+        impact: "high" | "low" | "medium";
         title: string;
         description: string;
-        category: "dependency" | "integration" | "operational" | "assumption" | "external";
-        likelihood: "high" | "medium" | "low";
-        impact: "high" | "medium" | "low";
         mitigation: string;
     }[];
     fallback_used?: boolean | undefined;

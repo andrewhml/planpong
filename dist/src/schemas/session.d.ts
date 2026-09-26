@@ -41,7 +41,9 @@ export declare const SessionSchema: z.ZodObject<{
     inlineClient: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     id: string;
-    status: "aborted" | "approved" | "blocked" | "planning" | "in_review";
+    repoRoot: string;
+    planPath: string;
+    planPathAbsolute: string;
     planner: {
         provider: string;
         model?: string | undefined;
@@ -52,20 +54,20 @@ export declare const SessionSchema: z.ZodObject<{
         model?: string | undefined;
         effort?: string | undefined;
     };
-    repoRoot: string;
-    planPath: string;
-    planPathAbsolute: string;
+    status: "aborted" | "approved" | "blocked" | "in_review" | "planning";
     currentRound: number;
     startedAt: string;
     planHash: string;
-    plannerMode: "external" | "inline";
     initialLineCount?: number | undefined;
     reviewerSessionId?: string | undefined;
     reviewerSessionInitialized?: boolean | undefined;
+    plannerMode: "external" | "inline";
     inlineClient?: string | undefined;
 }, {
     id: string;
-    status: "aborted" | "approved" | "blocked" | "planning" | "in_review";
+    repoRoot: string;
+    planPath: string;
+    planPathAbsolute: string;
     planner: {
         provider: string;
         model?: string | undefined;
@@ -76,9 +78,7 @@ export declare const SessionSchema: z.ZodObject<{
         model?: string | undefined;
         effort?: string | undefined;
     };
-    repoRoot: string;
-    planPath: string;
-    planPathAbsolute: string;
+    status: "aborted" | "approved" | "blocked" | "in_review" | "planning";
     currentRound: number;
     startedAt: string;
     planHash: string;

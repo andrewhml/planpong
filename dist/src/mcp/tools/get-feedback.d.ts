@@ -7,11 +7,12 @@ export declare function getFeedbackHandler(input: {
         type: "text";
         text: string;
     }[];
+    isError: boolean;
 } | {
+    isError?: undefined;
     content: {
         type: "text";
         text: string;
     }[];
-    isError: boolean;
 }>;
 export declare function registerGetFeedback(server: McpServer): void;
