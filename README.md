@@ -14,6 +14,8 @@ The planner model evaluates each piece of feedback independently — accepting, 
 
 ## Prerequisites
 
+**Node.js 22.13 or newer.** Planpong exits with a clear message on older versions.
+
 You need at least **one AI CLI** installed and authenticated:
 
 - **Claude Code** — `npm install -g @anthropic-ai/claude-code` (Anthropic API key or Max subscription)
