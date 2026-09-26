@@ -201,6 +201,12 @@ Reading left to right: round 3 of 10, claude planned / codex reviewed, issue tra
 
 Session data is stored in `.planpong/sessions/` (add to `.gitignore`).
 
+## Troubleshooting
+
+**The planpong MCP server fails to connect.** Check which Node your MCP config launches; it may not be the one on your shell's PATH. Planpong needs Node 22.13 or newer, and on an older Node the server exits right away with `planpong requires Node >= 22.13.0; found <version> at <path>`. Claude Code shows that line in its MCP logs. Upgrade Node, or point the `command` in your MCP config at a newer `node`.
+
+**A review round fails with a provider error.** Planpong reports the CLI's own error text (for example a codex `401` or an unsupported model). Run the provider CLI directly to confirm (`codex exec`, `claude -p`, `gemini -p`), and check the provider's status page.
+
 ## Development
 
 ```sh

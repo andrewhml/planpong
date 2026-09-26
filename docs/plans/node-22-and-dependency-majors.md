@@ -1,6 +1,6 @@
 # Node 22 Floor and Dependency Major Upgrades
 
-**Status:** In progress (PR 0: existing bug fixes)
+**Status:** In progress (PR 1: Node 22 floor and platform majors)
 **planpong:** R4/10 | claude(high) → claude(claude-opus-5-5/xhigh) | detail | 3P2 2P3 → 3P2 2P3 → 1P2 2P3 → 0 | Accepted: 13 | +27/-0 lines | 5m 19s | Approved after 4 rounds
 
 ## Context
@@ -75,18 +75,18 @@ Three PRs, each behind the CI gate:
 
 ### PR 1: Node 22 floor, runtime and tooling majors
 
-- [ ] **Step 1: Node floor**
+- [x] **Step 1: Node floor**
   - `package.json`: `engines.node` to `">=22.13.0"`.
   - `.github/workflows/ci.yml`: matrix `["22", "24", "26"]`; replace the Node 18 comment with one stating the floor and why (`@inquirer/prompts` 8 and commander 15).
   - `publish.yml` stays on Node 24 (OIDC trusted publishing).
   - `tsconfig.json`: add `"types": ["node"]` (harmless on 5.9, required on 6/7).
   - `@types/node` to `^22.20.4`.
   - README Prerequisites: state Node 22.13+.
-- [ ] **Step 2: Runtime majors** (no code changes expected): `@inquirer/prompts@^8.7.2`, `chalk@^6.0.0`, `commander@^15.0.0`, `execa@^10.0.1`, `ora@^9.4.1`, `@modelcontextprotocol/sdk@^1.30.1`, `yaml@^2.9.1`. Run `npm install` to refresh the lockfile.
-- [ ] **Step 3: Dev majors**: `vitest@^5.0.2` (installs `vite` as its peer), `typescript` pinned **exactly** to `7.0.2` (no caret: a patch release that changes emit order would fail the dist gate on every PR), `tsx`, `ajv` latest minors.
+- [x] **Step 2: Runtime majors** (no code changes expected): `@inquirer/prompts@^8.7.2`, `chalk@^6.0.0`, `commander@^15.0.0`, `execa@^10.0.1`, `ora@^9.4.1`, `@modelcontextprotocol/sdk@^1.30.1`, `yaml@^2.9.1`. Run `npm install` to refresh the lockfile.
+- [x] **Step 3: Dev majors**: `vitest@^5.0.2` (installs `vite` as its peer), `typescript` pinned **exactly** to `7.0.2` (no caret: a patch release that changes emit order would fail the dist gate on every PR), `tsx`, `ajv` latest minors.
   - Confirm `dist/` after a clean rebuild differs from the previous build only in `.js.map` mappings and the one `.d.ts` union order, and commit the rebuilt `dist/` (the CI dist gate enforces consistency).
   - **Determinism check before committing to TS 7:** research compared one TS 7 build against 5.9; it did not show TS 7 is stable across runs, and the `.d.ts` union-order change suggests emit depends on type-creation order, which a parallel native checker could vary. Build from an empty `dist/` three times locally and diff all three; then rely on the CI dist gate, which already rebuilds from empty on three Node versions (three independent runs on a different OS). Any difference in either check triggers the reversal rule (pin 6.0.3).
-- [ ] **Step 4: Clear failure on old Node**
+- [x] **Step 4: Clear failure on old Node**
   - `engines` is advisory and never shown when Claude Code spawns the MCP server directly (`node .../planpong-mcp.js` or `npx`), so on Node 20 the new majors would crash at import and the user would see only "failed to connect".
   - ESM hoists static imports, so a guard at the top of the current entrypoints would run too late. Split each bin into a guard plus the real entry: `bin/planpong.ts` and `bin/planpong-mcp.ts` import only `node:process`-level builtins, compare `process.versions.node` against the minimum (read from `package.json` `engines` so there is one source of truth; fall back to a constant if unreadable), and on failure write `planpong requires Node >= 22.13.0; found <version> at <process.execPath>. Upgrade Node or point your MCP config at a newer node.` to stderr and exit 1. On success they `await import("../src/cli/main.js")` / `await import("../src/mcp/main.js")`, which hold the current entry code unchanged.
   - For the MCP server, stderr is what Claude Code records for a failed server, so the message is visible in its MCP logs.
