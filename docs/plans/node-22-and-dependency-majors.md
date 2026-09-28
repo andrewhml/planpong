@@ -1,6 +1,6 @@
 # Node 22 Floor and Dependency Major Upgrades
 
-**Status:** In progress (PR 2: zod 4)
+**Status:** Releasing 0.8.0 (PRs 0-2 merged: #58, #59, #61; plus #60)
 **planpong:** R4/10 | claude(high) → claude(claude-opus-5-5/xhigh) | detail | 3P2 2P3 → 3P2 2P3 → 1P2 2P3 → 0 | Accepted: 13 | +27/-0 lines | 5m 19s | Approved after 4 rounds
 
 ## Context
@@ -94,7 +94,7 @@ Three PRs, each behind the CI gate:
   - Tests: version comparison (22.12.9 fails, 22.13.0 passes, 26.0.0 passes, malformed version passes through rather than blocking); the fallback constant equals the `package.json` `engines` floor; the resolved `package.json` path is found from both `bin/` (tsx) and `dist/bin/`.
   - Smoke: both bins under `npx -y node@20` assert exit 1 and the message, run twice: from repo `dist/`, and from an `npm pack` tarball installed into a temp prefix (the layout real users get).
   - README troubleshooting: "MCP server fails to connect" → check the Node version the MCP config launches.
-- [ ] **PR 1 verification**
+- [x] **PR 1 verification** (results in #59)
   - `npm ci && npm run typecheck && npm test` green; CI green on 22/24/26.
   - Built CLI smoke on Node 22 and 26 (`npx -y node@22`): `planpong --help`, `config providers`, `config set`/`unset` in a temp dir, and `planpong init` driven by `expect` (same script as #56: provider switch and pinned-model preservation).
   - Live review round from `dist/` (codex reviewer structured, claude planner with `--effort low` structured), as in #56.
@@ -120,7 +120,7 @@ Three PRs, each behind the CI gate:
 
 ### Release
 
-- [ ] Docs gate: README Node requirement; release-note text for the validation-message change.
+- [x] Docs gate: README Node requirement (landed in #59: Prerequisites and Troubleshooting); release-note text for the validation-message change (GitHub release for v0.8.0).
 - [ ] `npm version minor` → 0.8.0, push with tags; confirm the publish workflow and `npm view planpong@latest`.
 - [ ] Post-release check: run one real `/pong-review` round per provider through the released package (`npx -y planpong@0.8.0` MCP, or the repo `dist/` at the tag) and confirm structured mode in the round metrics.
 - [ ] **Rollback, if needed.** npx-based MCP registrations pick up `latest` automatically, so a bad 0.8.0 reaches users without them acting. Triggers: any structured-mode round falling back to prompted where 0.7.0 did not; a parse or config-load failure on input 0.7.0 accepted; the Node guard rejecting a supported Node (>= 22.13.0). Steps: `npm dist-tag add planpong@0.7.0 latest` (restores the previous version for new installs and npx), `npm deprecate planpong@0.8.0 "<reason>; use 0.7.0 or wait for 0.8.1"`, open an issue with the evidence, then fix forward as 0.8.1 and move `latest` back with a normal publish. Note that `npm dist-tag` and `npm deprecate` need an authenticated npm user with publish rights; CI publishes via OIDC, so these are run by the maintainer.
